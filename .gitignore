@@ -1,0 +1,17 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# OS & Logs
+.DS_Store
+Thumbs.db
+*.log
+
+# Dependencies & Build Caches
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
