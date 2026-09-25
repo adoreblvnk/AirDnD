@@ -4,28 +4,13 @@
 
 ## 📢 Participant Announcement & Submission Guide (September 2026)
 
-### 1. Key Deadlines & Timeline
-- **Challenge Selection Deadline:** **Tuesday, 15 Sep 2026, 2359H** (early submission unlocks mentor assignment and early build approval).
-- **Early Build Window:** Upon proposal finalization with the Defence Venture Lab (DVL) team and assigned mentors, teams can begin building immediately prior to the event.
-- **Main Hackathon Event:** **25–27 September 2026** at NUS Enterprise @ i3.
+### Key Dates & Timeline
+- **Main Hackathon Event:** **25–27 September 2026** at NUS Enterprise @ i3 (Singapore).
+- **Format:** 48-hour build challenge. Pure software simulation is fully valid; hardware bench rigs serve as credibility anchors.
 
-### 2. Submission Requirements
-1. **Google Form (1 submission per team):**
-   - **URL:** [SDTH 2026 Challenge Selection Form](https://docs.google.com/forms/d/e/1FAIpQLSf5FF0zB5-y3EDVy3z7KsbwOemJ7dlkGkBdtWVzg4VT497bhw/viewform?usp=sharing&ouid=115329330951351982487)
-   - Submit selected challenge track and one-liner description.
-2. **WhatsApp Group Pitch (Guided by 4 Prompts):**
-   - **Q1 (Scope & Horizon):** What problem are you solving, and in what time frame (near term or longer term)?
-   - **Q2 (Approach):** What is your proposed approach?
-   - **Q3 (Demonstrable Deliverable):** What will you build or demonstrate through software codes to show that it works?
-   - **Q4 (Operational Roadmap):** If it works, what future developments would be needed to make it an operational solution?
-
-### 3. Judging Values & Build Support
+### Judging Values & Build Support
 - **Judging Focus:** Creativity and technical/scientific feasibility. A working proof of concept tackling a hard problem beats a safe, superficial demo.
-- **Reimbursement & BOM:** Reasonable hardware expenses considered with a Bill of Materials (BOM) and justification write-up.
-- **3D Printing Support:** Teams can submit CAD/print files and write-ups for pre-event printing (printers also available on-site).
-- **Special Challenge ("Lord of the Rings"):** Select 2-day teams may be invited to partner with the 3-month extended track for a dedicated prize pool ([Reference](https://lnkd.in/p/gjzy8bxG)).
-
----
+- **Special Challenge ("Lord of the Rings"):** Integrating specialized autonomous capabilities into a cohesive defense capability under DVL's "Little Red Dome" framework.
 
 ## 00. Overview & General Constraints (`SDTH/2026/PS/00`)
 
@@ -43,39 +28,6 @@
 
 ---
 
-## 01. Green Corridor (`SDTH/2026/PS/01`)
-*Unmanned ground & littoral operations under tropical canopy and extreme terrain.*
-
-### Situation & Bottlenecks
-* **Environment:** Closed canopy eliminates GPS/GNSS and satellite comms; only 1–2% ambient light reaches the forest floor. Wind-driven self-similar foliage causes optical flow and visual SLAM to drift rapidly.
-* **RF Attenuation:** Dense wet vegetation severely degrades 2.4 GHz and 5.8 GHz links, especially during tropical downpours.
-* **Hardware Degradation:** Salt aerosol, daily condensation, and fungal growth (MIL-STD-810) cause insidious electrical/optical failure.
-* **Operator Ratio & Attrition:** 1:1 operator-to-platform ratios fail at scale. Platforms must be cheap, expendable, or recoverable without risking human lives.
-* **Tidal Transition:** Mudflats and mangroves bog wheeled/tracked vehicles and ground boats.
-
-### Key Focus Areas & Examples
-* **Lidar/Radar Structure SLAM:** Using tree trunks and terrain relief rather than vision for localization.
-* **Short-Range Fiber-Optic Tethers:** Capitalizing on Singapore's compact operational distances where fiber tethers are viable and immune to RF attenuation/jamming.
-* **Substrate Fluidization:** Bio-inspired propulsion (mudskipper oscillation) to change substrate shear strength rather than fighting traction.
-* **Autonomous Ground Turrets:** Relocating effectors to ground robotic platforms to engage low-altitude drones beneath the canopy.
-
----
-
-## 02. Creative Sensing (`SDTH/2026/PS/02`)
-*Detecting non-emissive, low-RCS, ambient-temperature threats (e.g. fiber-optic drones).*
-
-### Situation & Bottlenecks
-* **The Invisible Target:** Fiber-optic and autonomous pre-programmed drones emit zero RF, use fiberglass/composite airframes with near-zero radar cross section (RCS), and match ambient air temperature in tropical climates.
-* **The False Alarm Threshold:** A system generating $\ge 2$ false alarms per hour will be disabled by operators. Dense civilian drone traffic in Singapore makes background rejection critical.
-* **Ambient Noise:** Acoustic detection ranges collapse near expressways, maritime ports, and Changi flight corridors.
-* **Passive Sensing Geometry:** Passive sensors provide bearing only; determining range requires synchronized multi-node triangulation and complex track association.
-
-### Key Focus Areas & Examples
-* **Distributed Low-Cost Acoustic Networks:** Mass arrays of cheap, distributed acoustic nodes (prioritizing coverage economics over single-sensor range).
-* **Adjacent Target Signatures:** Detecting the trailing fiber cable along transit corridors or disturbances in ambient signals rather than hunting the airframe itself.
-* **Uncued vs. Cued Architecture:** Explicitly defining how broad-area uncued discovery hands off to precision tracking.
-
----
 
 ## 03. Interceptors (`SDTH/2026/PS/03`)
 *Autonomous pilotless interceptor swarms defeating high-speed attritable raids (300–600 km/h).*
@@ -156,9 +108,9 @@
 
 ---
 
-## Technical Mapping to SalvoCore
+## Technical Mapping to AirDnD
 
-| SDTH Challenge Layer | Problem Statement Focus | SalvoCore Technical Implementation |
+| SDTH Challenge Layer | Problem Statement Focus | AirDnD Technical Implementation |
 | :--- | :--- | :--- |
 | **Strategic Layer (Ground C2)** | **PS/04 (One Picture, Many Eyes)** & **DVL Little Red Dome** | Multi-source ingest (Radar/ADS-B/CoT), collateral debris calculation around HDB zones, agentic threat evaluation, and 1-click 3-card commander intent gating. |
 | **Tactical Layer (Edge Swarm)** | **PS/03 Layer 3 (Onboard Autonomy)** & **DVL Counter-Swarm** | Decentralized P2P auction / consensus engine executing millisecond Weapon-Target Assignment (WTA) under total EW jamming / zero ground telemetry. |

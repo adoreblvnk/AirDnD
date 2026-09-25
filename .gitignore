@@ -1,17 +1,23 @@
-# Environment & Secrets
+node_modules
+dist
+# Credential files. `.env` alone is not enough: Vite's loadEnv (see
+# server/standalone/vite.config.js) and scripts/setup-doctor.mjs both read the
+# full dotenv ladder — .env, .env.local, .env.<mode> and .env.<mode>.local —
+# so a key placed in any of them is live for the app. Only .env was ignored,
+# leaving the other three committable. .env.example is the tracked template.
 .env
 .env.*
 !.env.example
-
-# OS & Logs
-.DS_Store
-Thumbs.db
 *.log
-
-# Dependencies & Build Caches
-node_modules/
-__pycache__/
-*.pyc
-.venv/
-dist/
-build/
+screenshots/
+qa-shots/
+output/
+.gev-logs/
+.gev-cache/
+.DS_Store
+.gstack/
+3d-models/
+pinokio/ENVIRONMENT
+pinokio/.installed
+.playwright-cli/
+.gev-cache/

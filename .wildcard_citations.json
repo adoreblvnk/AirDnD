@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://arxiv.org/html/1503.09052v1",
+      "title": "Extending Eventually Consistent Cloud Databases for Enforcing Numeric Invariants",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": 2,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4434741",
+      "title": "How a well-adapted immune system is organized",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": 3,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9825997",
+      "title": "Bet-hedging and best-bet strategies shape seed dormancy",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": 4,
+      "url": "https://doc.akka.io/libraries/akka-core/current/typed/failure-detector.html",
+      "title": "Phi Accrual Failure Detector",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": 5,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12520779",
+      "title": "Detecting and diagnosing faults in autonomous robot swarms",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": 6,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6894587",
+      "title": "Testing the limits of pheromone stigmergy in high-density robot swarms",
+      "accessed": "2026-09-15"
+    },
+    {
+      "id": 7,
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4527708",
+      "title": "Evolution of Self-Organized Task Specialization in Robot Swarms",
+      "accessed": "2026-09-15"
+    }
+  ]
+}
