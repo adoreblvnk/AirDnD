@@ -18,6 +18,7 @@ NOTE: we should focus not just on jamming, but also on other variables as well
   * Only normal enemy swarm drone
     * Preprogrammed drone, eg they’re programmed w script to target critical infrastructure (this bypasses jammers)
     * Mass attack: 1 controller 1 drone. This is likely as our enemies (eg malaysia / indo) have more ppl than us. But this can be easily countered w jamming
+    * their max is 1k drones in a swarm
   * Target ukraine / russia type drones (we are not targeting Shahed-style drones)
   * They will launch their drones at the same time, concentrated from a particular location / direction (ie to try to overwhelm us)
 * External variables/factors:
