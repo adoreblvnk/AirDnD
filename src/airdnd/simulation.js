@@ -3,6 +3,8 @@
 // Kinematic model for 100-threat MoT salvo and 30 interceptors over Singapore
 // ==============================================================================
 
+import { generateWave1Feint, generateWave2MainBody, CORRIDORS, STRATEGIC_TARGETS } from './raidGenerator.js';
+
 export const SG_COORDS = {
   center: { lon: 103.8198, lat: 1.2850, alt: 22000 },
   waterlineBoundaryLat: 1.235, // Boundary between open water and land/ports
@@ -111,6 +113,10 @@ export class TacticalSimulation {
     this.activeStrategy = 'waterline'; // 'waterline' | 'shield' | 'economy'
     this.isAuthorized = false;
     this.isJammingActive = false;
+    this.scenarioMode = 'dont_take_the_bait'; // 'default' | 'dont_take_the_bait' | 'naive_baseline'
+    this.currentWave = 0;
+    this.wave2Corridor = null;
+    this.wave1AllocationResult = null;
     this.timeMultiplier = 2.5; // Tactical simulation time scale for demo pacing
     this.history = [];
     this.historyTimer = 0;
@@ -212,6 +218,78 @@ export class TacticalSimulation {
     }
   }
 
+  // Initialize deterministic two-wave wargame scenario ("Don't Take the Bait")
+  initTwoWaveScenario(mode = 'dont_take_the_bait') {
+    this.scenarioMode = mode;
+    this.currentWave = 1;
+    this.wave2Corridor = null;
+    this.wave1AllocationResult = null;
+    this.threats = [];
+    this.interceptors = [];
+    this.stats.threatsNeutralized = 0;
+    this.stats.threatsLeaked = 0;
+    this.stats.interceptorsLost = 0;
+    this.stats.reassignments = 0;
+    this.isAuthorized = true;
+
+    // Spawn 30 defensive interceptors in 3 regional bases across Singapore
+    // 10 at Jurong / Tuas Coastal Base (West): lon ~103.68 - 103.74, lat ~1.235
+    // 10 at Central / Sentosa Base (Central): lon ~103.78 - 103.86, lat ~1.240
+    // 10 at Changi / Bedok Base (East): lon ~103.90 - 104.00, lat ~1.265
+    for (let j = 0; j < 30; j++) {
+      let baseLon, baseLat, baseAlt, baseName;
+      if (j < 10) {
+        baseLon = 103.68 + (j / 10) * 0.06;
+        baseLat = 1.235;
+        baseAlt = 250;
+        baseName = 'JURONG-WEST';
+      } else if (j < 20) {
+        baseLon = 103.78 + ((j - 10) / 10) * 0.08;
+        baseLat = 1.240;
+        baseAlt = 250;
+        baseName = 'CENTRAL-MBS';
+      } else {
+        baseLon = 103.90 + ((j - 20) / 10) * 0.10;
+        baseLat = 1.265;
+        baseAlt = 250;
+        baseName = 'CHANGI-EAST';
+      }
+
+      this.interceptors.push({
+        id: `D-${String(j + 1).padStart(2, '0')}`,
+        baseName,
+        lon: baseLon,
+        lat: baseLat,
+        alt: baseAlt,
+        speed: 160, // 160 m/s sprint
+        status: 'docked', // starts docked
+        targetId: null,
+        battery: 100,
+        flightTimeSec: 0,
+        isPhysicalHwNode: (j === 0),
+      });
+    }
+
+    // Spawn Wave 1: exactly 8 apparent threats (Feint / Bait)
+    this.threats = generateWave1Feint();
+    this.stats.threatsActive = this.threats.length;
+    this.stats.interceptorsActive = 30;
+  }
+
+  // Trigger Wave 2 Main Body along judge-selected corridor
+  triggerWave2(corridorKey = 'SOUTHEAST') {
+    if (this.currentWave >= 2) return null;
+    this.currentWave = 2;
+    this.wave2Corridor = corridorKey;
+
+    const { corridor, threats } = generateWave2MainBody(corridorKey);
+    for (const t of threats) {
+      this.threats.push(t);
+    }
+    this.stats.threatsActive = this.threats.filter(t => t.status === 'inbound').length;
+    return { corridor, threats };
+  }
+
   // Update kinematics each simulation tick (dt seconds)
   update(rawDt) {
     if (this.isScrubbing) return;
@@ -263,6 +341,17 @@ export class TacticalSimulation {
     // 2. Move active interceptors towards assigned targets
     for (const d of this.interceptors) {
       if (d.status !== 'launched' && d.status !== 'intercepting') continue;
+
+      // Sprint endurance consumption (210s)
+      d.flightTimeSec = (d.flightTimeSec || 0) + dt;
+      d.battery = Math.max(0, 100 - (d.flightTimeSec / 210) * 100);
+      if (d.battery <= 0 || d.flightTimeSec >= 210) {
+        d.status = 'lost';
+        d.targetId = null;
+        this.stats.interceptorsLost++;
+        continue;
+      }
+
       if (!d.targetId) continue;
 
       const target = this.threats.find(t => t.id === d.targetId);
@@ -273,15 +362,34 @@ export class TacticalSimulation {
         continue;
       }
 
-      // Vector to target
+      // Vector and distance to target
       const dLon = target.lon - d.lon;
       const dLat = target.lat - d.lat;
-      const dist = Math.sqrt(dLon * dLon + dLat * dLat);
-
-      // Closing distance in meters
+      const dist = Math.hypot(dLon, dLat) || 1e-6;
       const distMeters = dist * 111000;
 
-      if (distMeters < 65 || distMeters < d.speed * dt * 1.5) {
+      // Lead intercept vector (proportional navigation / lead pursuit guidance)
+      const tDx = target.targetLon - target.lon;
+      const tDy = target.targetLat - target.lat;
+      const tDistDeg = Math.hypot(tDx, tDy) || 1e-6;
+      const vxThreat = (tDx / tDistDeg) * target.speed; // m/s
+      const vyThreat = (tDy / tDistDeg) * target.speed; // m/s
+
+      // Time-to-go estimate for closing
+      const closingSpeedEst = d.speed + target.speed * 0.5;
+      const tGo = Math.max(0, Math.min(60, distMeters / closingSpeedEst));
+
+      // Aim point leads the target
+      const aimLon = target.lon + (vxThreat * tGo) / 111000;
+      const aimLat = target.lat + (vyThreat * tGo) / 111000;
+
+      const aimDLon = aimLon - d.lon;
+      const aimDLat = aimLat - d.lat;
+      const aimDist = Math.hypot(aimDLon, aimDLat) || 1e-6;
+
+      const fuseRadiusMeters = Math.max(120, d.speed * dt * 2.0);
+
+      if (distMeters < fuseRadiusMeters) {
         // KINETIC INTERCEPT SUCCESS!
         target.status = 'intercepted';
         this.stats.threatsNeutralized++;
@@ -291,11 +399,11 @@ export class TacticalSimulation {
         d.targetId = null;
         d.status = 'launched';
       } else {
-        // Fly towards target at interceptor speed
+        // Fly towards lead aim point at interceptor speed
         const stepMeters = d.speed * dt;
         const stepDeg = stepMeters / 111000;
-        d.lon += (dLon / dist) * stepDeg;
-        d.lat += (dLat / dist) * stepDeg;
+        d.lon += (aimDLon / aimDist) * stepDeg;
+        d.lat += (aimDLat / aimDist) * stepDeg;
         d.alt += (target.alt - d.alt) * Math.min(1.0, dt * 2.0);
 
         // Self-collision avoidance against neighboring active interceptors (200m safety buffer)

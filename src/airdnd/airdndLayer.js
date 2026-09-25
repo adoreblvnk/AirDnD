@@ -1,5 +1,5 @@
 // ==============================================================================
-// AirDnD Tactical Air Defense Layer for AirDnD
+// AirDnD Tactical Air Defense Layer for God's Eye View
 // Implements 3-Step Guided C2, 12-Threat Focused Dogfight, and ESP32 HIL
 // ==============================================================================
 
@@ -23,6 +23,7 @@ export class AirDnDLayer {
     this.reactionSeconds = 60.0;
     this.lastFrameTime = performance.now();
     this.overlayElement = null;
+    this.sim.initTwoWaveScenario('dont_take_the_bait');
     this.init();
   }
 
@@ -39,7 +40,10 @@ export class AirDnDLayer {
     // 4. Inject Clean, Guided Tactical HUD Overlay
     this.injectHud();
 
-    // 5. Start unthrottled 30Hz simulation loop
+    // 5. Run initial auction for Wave 1
+    this.swarm.runAuction(true);
+
+    // 6. Start unthrottled 30Hz simulation loop
     this.startLoop();
 
     soundFx.playRadarPing();
@@ -136,62 +140,108 @@ export class AirDnDLayer {
     `;
 
     hud.innerHTML = `
-      <!-- Top Tactical Header Card -->
-      <div style="pointer-events:auto; background:rgba(8,12,20,0.92); border:1px solid rgba(0,216,246,0.3); border-radius:4px; padding:12px 16px; box-shadow:0 4px 20px rgba(0,0,0,0.6); width:380px;">
+      <!-- Top Tactical Header Card: Don't Take the Bait Console -->
+      <div style="pointer-events:auto; background:rgba(8,12,20,0.94); border:1px solid rgba(0,216,246,0.35); border-radius:4px; padding:14px 16px; box-shadow:0 4px 24px rgba(0,0,0,0.7); width:400px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:6px;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="background:#00d8f6; color:#000; font-weight:900; font-size:11px; padding:2px 6px; border-radius:2px; font-family:monospace;">AIR-DND</span>
-            <span style="font-weight:700; font-size:12px; letter-spacing:0.5px;">LITTORAL AIR DEFENSE C2</span>
+            <span style="font-weight:800; font-size:12px; letter-spacing:0.5px;">DON'T TAKE THE BAIT</span>
           </div>
-          <span id="airdndHwBadge" style="font-size:10px; font-weight:700; color:#ffaa00; font-family:monospace;">CONNECTING BUS...</span>
+          <span id="airdndHwBadge" style="font-size:10px; font-weight:700; color:#00e599; font-family:monospace;">WARGAME READY</span>
         </div>
 
-        <!-- 3-Step Guided Progression Bar -->
-        <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:#94a3b8; margin-bottom:12px; background:rgba(255,255,255,0.04); padding:4px 8px; border-radius:3px;">
-          <span style="color:#00d8f6;">1. DETECT</span>
-          <span>➔</span>
-          <span id="stepAuthText" style="color:#94a3b8;">2. AUTHORIZE</span>
-          <span>➔</span>
-          <span id="stepEngageText" style="color:#94a3b8;">3. ENGAGE</span>
+        <!-- One-line pitch banner -->
+        <div style="font-size:10.5px; font-style:italic; color:#94a3b8; margin-bottom:10px; background:rgba(0,216,246,0.05); border-left:2px solid #00d8f6; padding:4px 8px; border-radius:0 3px 3px 0;">
+          “The judge controls the feint. Our swarm refuses to reveal or exhaust its defence.”
         </div>
 
-        <!-- Status Metrics -->
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:12px; text-align:center;">
-          <div style="background:rgba(255,255,255,0.03); padding:6px; border-radius:3px;">
-            <div style="font-size:9px; color:#94a3b8; text-transform:uppercase;">Hostiles</div>
-            <div id="airdndThreats" style="font-size:15px; font-weight:800; color:#ff3355; font-family:monospace;">100</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.03); padding:6px; border-radius:3px;">
-            <div style="font-size:9px; color:#94a3b8; text-transform:uppercase;">Defenders</div>
-            <div id="airdndDefenders" style="font-size:15px; font-weight:800; color:#00e599; font-family:monospace;">30</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.03); padding:6px; border-radius:3px;">
-            <div style="font-size:9px; color:#94a3b8; text-transform:uppercase;">Reaction Window</div>
-            <div id="airdndReaction" style="font-size:15px; font-weight:800; color:#ff3355; font-family:monospace;">60.0s</div>
-          </div>
-        </div>
-
-        <!-- Strategy Selection & 1-Click Authorize -->
-        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
-          <div style="font-size:10.5px; color:#94a3b8;">Strategic Intent (Select Course of Action):</div>
-          <select id="selStrategy" style="background:#0d1522; border:1px solid rgba(0,216,246,0.3); color:#f1f5f9; padding:6px 8px; border-radius:3px; font-size:11px; font-family:inherit;">
-            <option value="waterline" selected>1. Waterline Intercept (Recommended — Sea Engagement)</option>
-            <option value="shield">2. Critical Asset Shield (Jurong & Changi Focus)</option>
-            <option value="economy">3. Economy Reserve (30% Held for Follow-on Waves)</option>
-          </select>
-          <button id="btnAirDndAuth" style="background:#00e599; border:none; color:#000; font-weight:800; padding:10px; border-radius:3px; cursor:pointer; font-size:11px; letter-spacing:0.5px; transition:all 0.15s ease;">
-            AUTHORIZE STRATEGY (1-CLICK)
+        <!-- Mode Toggle: Naive Baseline vs. Don't Take the Bait -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px;">
+          <button id="btnWargameBaseline" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); color:#94a3b8; font-weight:700; padding:8px 4px; border-radius:3px; cursor:pointer; font-size:10px; transition:all 0.15s ease;">
+            1. NAIVE BASELINE (OVERCOMMIT)
+          </button>
+          <button id="btnWargameSurvival" style="background:#00d8f6; border:1px solid #00d8f6; color:#000; font-weight:900; padding:8px 4px; border-radius:3px; cursor:pointer; font-size:10px; transition:all 0.15s ease;">
+            2. SURVIVAL OPTIMIZER (ACTIVE)
           </button>
         </div>
 
-        <!-- Jamming Simulation Trigger -->
-        <button id="btnAirDndJam" style="width:100%; background:rgba(255,51,85,0.15); border:1px solid #ff3355; color:#ff3355; font-weight:800; padding:8px; border-radius:3px; cursor:pointer; font-size:11px; letter-spacing:0.5px; margin-bottom:8px;">
-          <span id="txtAirDndJam">INJECT ENEMY EW JAMMING</span>
+        <!-- Wargame Step 1: Run Feint Wave -->
+        <button id="btnWargameWave1" style="width:100%; background:rgba(0,229,153,0.18); border:1px solid #00e599; color:#00e599; font-weight:800; padding:8px; border-radius:3px; cursor:pointer; font-size:11px; letter-spacing:0.5px; margin-bottom:10px;">
+          ▶ 1. INJECT WAVE 1: FEINT (8 APPARENT THREATS)
+        </button>
+
+        <!-- Wargame Step 2: Judge Wave 2 Feint Corridor Launchpad -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:3px; padding:8px; margin-bottom:10px;">
+          <div style="font-size:9.5px; font-weight:800; color:#ffaa00; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; display:flex; justify-content:space-between;">
+            <span>⚡ JUDGE FEINT LAUNCHPAD (REVEAL WAVE 2)</span>
+            <span style="color:#94a3b8;">16 THREATS</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <button id="btnCorridorSE" style="background:#0d1522; border:1px solid rgba(255,51,85,0.4); color:#f1f5f9; font-weight:700; padding:6px 4px; border-radius:3px; cursor:pointer; font-size:9.5px;">
+              SOUTHEAST (MBS / DOWNTOWN)
+            </button>
+            <button id="btnCorridorSW" style="background:#0d1522; border:1px solid rgba(255,51,85,0.4); color:#f1f5f9; font-weight:700; padding:6px 4px; border-radius:3px; cursor:pointer; font-size:9.5px;">
+              SOUTHWEST (JURONG ISLAND)
+            </button>
+            <button id="btnCorridorSC" style="background:#0d1522; border:1px solid rgba(255,51,85,0.4); color:#f1f5f9; font-weight:700; padding:6px 4px; border-radius:3px; cursor:pointer; font-size:9.5px;">
+              CENTRAL (PORT / SENTOSA)
+            </button>
+            <button id="btnCorridorE" style="background:#0d1522; border:1px solid rgba(255,51,85,0.4); color:#f1f5f9; font-weight:700; padding:6px 4px; border-radius:3px; cursor:pointer; font-size:9.5px;">
+              EAST (CHANGI AIR BASE)
+            </button>
+          </div>
+        </div>
+
+        <!-- Expiring Readiness Clocks (Docked Interceptor Reachability) -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:9.5px; font-weight:800; color:#00d8f6; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; display:flex; justify-content:space-between;">
+            <span>EXPIRING READINESS CLOCKS</span>
+            <span style="color:#94a3b8;">LATEST SAFE LAUNCH</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-family:monospace; font-size:9.5px;">
+            <div style="background:rgba(255,255,255,0.03); padding:4px 6px; border-radius:2px; display:flex; justify-content:space-between;">
+              <span style="color:#94a3b8;">SE (MBS):</span>
+              <span id="clockSE" style="color:#00e599; font-weight:800;">CALCULATING</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); padding:4px 6px; border-radius:2px; display:flex; justify-content:space-between;">
+              <span style="color:#94a3b8;">SW (JURONG):</span>
+              <span id="clockSW" style="color:#00e599; font-weight:800;">CALCULATING</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); padding:4px 6px; border-radius:2px; display:flex; justify-content:space-between;">
+              <span style="color:#94a3b8;">CENTRAL:</span>
+              <span id="clockSC" style="color:#00e599; font-weight:800;">CALCULATING</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); padding:4px 6px; border-radius:2px; display:flex; justify-content:space-between;">
+              <span style="color:#94a3b8;">EAST (CHANGI):</span>
+              <span id="clockE" style="color:#00e599; font-weight:800;">CALCULATING</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Scoreboard & Strategic Protection Readout -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px; font-size:10px;">
+          <div style="background:rgba(255,255,255,0.03); padding:6px; border-radius:3px;">
+            <div style="color:#94a3b8; font-size:9px;">STRATEGIC CORE STATUS</div>
+            <div id="lblMbsStatus" style="font-size:11px; font-weight:800; color:#00e599; font-family:monospace; margin-top:2px;">
+              MBS 100% SECURED
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:6px; border-radius:3px;">
+            <div style="color:#94a3b8; font-size:9px;">DOCKED RESERVES</div>
+            <div id="lblWargameFleet" style="font-size:11px; font-weight:800; color:#00d8f6; font-family:monospace; margin-top:2px;">
+              20 / 30 HELD
+            </div>
+          </div>
+        </div>
+
+        <!-- Reset Button -->
+        <button id="btnWargameReset" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:#cbd5e1; font-weight:700; padding:6px; border-radius:3px; cursor:pointer; font-size:10px; margin-bottom:8px;">
+          ↺ RESET WARGAME SCENARIO
         </button>
 
         <!-- Benchmark / Hardware Status Mini Row -->
         <div style="display:flex; justify-content:space-between; font-size:10px; font-family:monospace; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
-          <span>LEAKAGE: <strong id="airdndLeakage" style="color:#00e599;">0.0%</strong> (vs 28% Baseline)</span>
+          <span>LEAKAGE: <strong id="airdndLeakage" style="color:#00e599;">0.0%</strong> <span id="lblLeakCompare">(vs 75% Baseline)</span></span>
           <span>LOOP: <strong id="airdndHwLoop" style="color:#00e599;">2.4 ms</strong></span>
         </div>
       </div>
@@ -200,35 +250,67 @@ export class AirDnDLayer {
     document.body.appendChild(hud);
     this.overlayElement = hud;
 
-    // Bind HUD events
-    document.getElementById('btnAirDndAuth')?.addEventListener('click', () => {
-      this.sim.isAuthorized = true;
-      const btn = document.getElementById('btnAirDndAuth');
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'ROE AUTHORIZED — SWARM ENGAGING';
-        btn.style.background = '#334155';
-        btn.style.color = '#94a3b8';
-      }
-      const stepAuth = document.getElementById('stepAuthText');
-      const stepEng = document.getElementById('stepEngageText');
-      if (stepAuth) stepAuth.style.color = '#00e599';
-      if (stepEng) stepEng.style.color = '#00d8f6';
+    // Bind Wargame HUD Events
+    const btnBaseline = document.getElementById('btnWargameBaseline');
+    const btnSurvival = document.getElementById('btnWargameSurvival');
 
-      for (const d of this.sim.interceptors) {
-        if (d.status !== 'lost') d.status = 'launched';
+    const updateModeButtons = (mode) => {
+      if (mode === 'dont_take_the_bait') {
+        btnSurvival.style.background = '#00d8f6';
+        btnSurvival.style.borderColor = '#00d8f6';
+        btnSurvival.style.color = '#000';
+        btnSurvival.textContent = '2. SURVIVAL OPTIMIZER (ACTIVE)';
+        btnBaseline.style.background = 'rgba(255,255,255,0.06)';
+        btnBaseline.style.borderColor = 'rgba(255,255,255,0.15)';
+        btnBaseline.style.color = '#94a3b8';
+        btnBaseline.textContent = '1. NAIVE BASELINE (OVERCOMMIT)';
+      } else {
+        btnBaseline.style.background = '#ffaa00';
+        btnBaseline.style.borderColor = '#ffaa00';
+        btnBaseline.style.color = '#000';
+        btnBaseline.textContent = '1. NAIVE BASELINE (ACTIVE)';
+        btnSurvival.style.background = 'rgba(255,255,255,0.06)';
+        btnSurvival.style.borderColor = 'rgba(255,255,255,0.15)';
+        btnSurvival.style.color = '#94a3b8';
+        btnSurvival.textContent = '2. SURVIVAL OPTIMIZER';
       }
+    };
+
+    btnBaseline?.addEventListener('click', () => {
+      this.sim.initTwoWaveScenario('naive_baseline');
+      this.swarm.runAuction(true);
+      updateModeButtons('naive_baseline');
+      soundFx.playRadioClick();
+    });
+
+    btnSurvival?.addEventListener('click', () => {
+      this.sim.initTwoWaveScenario('dont_take_the_bait');
+      this.swarm.runAuction(true);
+      updateModeButtons('dont_take_the_bait');
+      soundFx.playRadioClick();
+    });
+
+    document.getElementById('btnWargameWave1')?.addEventListener('click', () => {
+      this.sim.initTwoWaveScenario(this.sim.scenarioMode);
       this.swarm.runAuction(true);
       soundFx.playRadioClick();
     });
 
-    document.getElementById('btnAirDndJam')?.addEventListener('click', () => {
-      this.toggleJamming();
-    });
+    // Corridor Launchpad
+    const triggerWave2Corridor = (corridorKey) => {
+      this.sim.triggerWave2(corridorKey);
+      this.swarm.runAuction(true);
+      soundFx.playRadioClick();
+    };
 
-    document.getElementById('selStrategy')?.addEventListener('change', (e) => {
-      this.sim.activeStrategy = e.target.value;
-      if (this.sim.isAuthorized) this.swarm.runAuction(true);
+    document.getElementById('btnCorridorSE')?.addEventListener('click', () => triggerWave2Corridor('SOUTHEAST'));
+    document.getElementById('btnCorridorSW')?.addEventListener('click', () => triggerWave2Corridor('SOUTHWEST'));
+    document.getElementById('btnCorridorSC')?.addEventListener('click', () => triggerWave2Corridor('CENTRAL'));
+    document.getElementById('btnCorridorE')?.addEventListener('click', () => triggerWave2Corridor('EAST'));
+
+    document.getElementById('btnWargameReset')?.addEventListener('click', () => {
+      this.sim.initTwoWaveScenario(this.sim.scenarioMode);
+      this.swarm.runAuction(true);
       soundFx.playRadioClick();
     });
 
@@ -238,6 +320,10 @@ export class AirDnDLayer {
         this.toggleNoseCam();
       } else if (e.key === 'j' || e.key === 'J') {
         this.toggleJamming();
+      } else if (e.key === '1') {
+        btnBaseline?.click();
+      } else if (e.key === '2') {
+        btnSurvival?.click();
       }
     });
   }
@@ -457,31 +543,89 @@ export class AirDnDLayer {
   }
 
   updateHud() {
-    const threatsElem = document.getElementById('airdndThreats');
-    const defendersElem = document.getElementById('airdndDefenders');
-    const reactElem = document.getElementById('airdndReaction');
     const leakElem = document.getElementById('airdndLeakage');
+    const leakCompareElem = document.getElementById('lblLeakCompare');
+    const mbsStatusElem = document.getElementById('lblMbsStatus');
+    const fleetElem = document.getElementById('lblWargameFleet');
 
-    if (threatsElem) threatsElem.textContent = this.sim.stats.threatsActive;
-    if (defendersElem) defendersElem.textContent = this.sim.stats.interceptorsActive;
+    const dockedCount = this.sim.interceptors.filter(d => d.status === 'docked').length;
+    const activeCount = this.sim.interceptors.filter(d => d.status === 'launched' || d.status === 'intercepting').length;
 
-    if (reactElem) {
-      if (this.sim.stats.threatsActive === 0 && this.sim.stats.threatsNeutralized > 0) {
-        reactElem.textContent = `${this.reactionSeconds.toFixed(1)}s [SECURED]`;
-        reactElem.style.color = '#00e599';
-      } else if (this.sim.isAuthorized) {
-        this.reactionSeconds = Math.max(0, this.reactionSeconds - 0.033 * this.sim.timeMultiplier);
-        reactElem.textContent = `${this.reactionSeconds.toFixed(1)}s`;
-        reactElem.style.color = this.reactionSeconds > 20 ? '#00e599' : '#ff3355';
+    if (fleetElem) {
+      fleetElem.textContent = `${dockedCount} / 30 HELD`;
+      fleetElem.style.color = dockedCount >= 15 ? '#00d8f6' : '#ffaa00';
+    }
+
+    const total = this.sim.stats.threatsNeutralized + this.sim.stats.threatsLeaked;
+    const pct = total > 0 ? (this.sim.stats.threatsLeaked / total) * 100 : 0.0;
+
+    if (leakElem) {
+      leakElem.textContent = `${pct.toFixed(1)}%`;
+      leakElem.style.color = pct === 0 ? '#00e599' : '#ff3355';
+    }
+
+    if (leakCompareElem) {
+      if (this.sim.scenarioMode === 'naive_baseline') {
+        leakCompareElem.textContent = '(BASELINE DEPLETED)';
+        leakCompareElem.style.color = '#ffaa00';
       } else {
-        reactElem.textContent = '60.0s';
+        leakCompareElem.textContent = '(vs 75% Baseline)';
+        leakCompareElem.style.color = '#94a3b8';
       }
     }
 
-    if (leakElem) {
-      const total = this.sim.stats.threatsNeutralized + this.sim.stats.threatsLeaked;
-      const pct = total > 0 ? (this.sim.stats.threatsLeaked / total) * 100 : 0.0;
-      leakElem.textContent = `${pct.toFixed(1)}%`;
+    if (mbsStatusElem) {
+      if (this.sim.scenarioMode === 'naive_baseline') {
+        if (this.sim.stats.threatsLeaked > 0) {
+          mbsStatusElem.textContent = `MBS BREACHED (${this.sim.stats.threatsLeaked} LEAKED)`;
+          mbsStatusElem.style.color = '#ff3355';
+        } else if (this.sim.currentWave >= 2) {
+          mbsStatusElem.textContent = 'MBS EXPOSED (0 RESERVES)';
+          mbsStatusElem.style.color = '#ffaa00';
+        } else {
+          mbsStatusElem.textContent = 'OVERCOMMITTED (FLEET AT RISK)';
+          mbsStatusElem.style.color = '#ffaa00';
+        }
+      } else {
+        if (this.sim.stats.threatsLeaked > 0) {
+          mbsStatusElem.textContent = `MBS BREACHED (${this.sim.stats.threatsLeaked} LEAKED)`;
+          mbsStatusElem.style.color = '#ff3355';
+        } else {
+          mbsStatusElem.textContent = 'MBS 100% SECURED';
+          mbsStatusElem.style.color = '#00e599';
+        }
+      }
     }
+
+    // Update 4 Expiring Readiness Clocks
+    const updateClock = (elemId, corridorKey) => {
+      const el = document.getElementById(elemId);
+      if (!el) return;
+      const clockData = this.swarm.expiringClocks.get(corridorKey);
+      if (!clockData || clockData.deadlineSec <= 0) {
+        if (dockedCount === 0) {
+          el.textContent = 'EXPIRED (0 RSV)';
+          el.style.color = '#ff3355';
+        } else {
+          el.textContent = 'STANDBY';
+          el.style.color = '#94a3b8';
+        }
+      } else {
+        const sec = clockData.deadlineSec.toFixed(1);
+        el.textContent = `${sec}s [${clockData.reachableCount} Rsv]`;
+        if (clockData.deadlineSec > 25) {
+          el.style.color = '#00e599';
+        } else if (clockData.deadlineSec > 12) {
+          el.style.color = '#ffaa00';
+        } else {
+          el.style.color = '#ff3355';
+        }
+      }
+    };
+
+    updateClock('clockSE', 'SOUTHEAST');
+    updateClock('clockSW', 'SOUTHWEST');
+    updateClock('clockSC', 'CENTRAL');
+    updateClock('clockE', 'EAST');
   }
 }
