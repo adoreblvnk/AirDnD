@@ -108,7 +108,7 @@ export async function createApplicationScene({
     // live scene state, so intermediate emissions are harmless.
     onChange: (state) => {
       window.dispatchEvent(
-        new CustomEvent('gev:map-stack-changed', { detail: state }),
+        new CustomEvent('airdnd:map-stack-changed', { detail: state }),
       );
     },
     onError: (message) => console.warn('[MapStack]', message),

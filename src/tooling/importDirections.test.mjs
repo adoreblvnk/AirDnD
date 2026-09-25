@@ -14,7 +14,7 @@ import { analyzeModule } from '../../scripts/module-analysis.mjs';
 import { checkImportDirections } from '../../scripts/check-import-directions.mjs';
 
 function fixture(t, exports = {}) {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'gev-directions-'));
+  const root = mkdtempSync(path.join(os.tmpdir(), 'airdnd-directions-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   const write = (name, source = '') => {
@@ -23,7 +23,7 @@ function fixture(t, exports = {}) {
   };
   write(
     'package.json',
-    JSON.stringify({ name: '@gods-eye-view/core', exports }),
+    JSON.stringify({ name: '@airdnd/core', exports }),
   );
   write('src/data/feedState.js');
   return { root, write };
@@ -151,7 +151,7 @@ for (const [name, files, pattern] of [
 
 test('self package imports cannot evade portable ownership', (t) => {
   const { root, write } = fixture(t, { './view': './src/ui/view.js' });
-  write('src/sources/demo.js', "import '@gods-eye-view/core/view';");
+  write('src/sources/demo.js', "import '@airdnd/core/view';");
   write('src/ui/view.js');
   assert.throws(() => checkImportDirections(root), /Source imports rendering/);
 });

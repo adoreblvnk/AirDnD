@@ -34,7 +34,7 @@ const css = readStylesheet(path.join(ROOT, 'style.css'));
 const sceneDirector = fs.readFileSync(path.join(ROOT, 'src', 'scenes', 'director.js'), 'utf8');
 const manager = fs.readFileSync(path.join(ROOT, 'src', 'data', 'lifecycle.js'), 'utf8');
 const contextLayer = readLayerSource(path.join(ROOT, 'src', 'data', 'militaryAwareness.js'), 'utf8');
-const voiceActions = fs.readFileSync(path.join(ROOT, 'src', 'voice', 'gevActions.js'), 'utf8');
+const voiceActions = fs.readFileSync(path.join(ROOT, 'src', 'voice', 'airdndActions.js'), 'utf8');
 
 test('Cockpit has one reset action beside its bottom exit path', () => {
   assert.doesNotMatch(html, /id="cockpit-quick-entry"/);
@@ -354,10 +354,10 @@ test('Cockpit side surfaces behave as two single-expanded accordions', () => {
     /if \(displayOpen \|\| radioOpen\) this\.actions\.setSignalCollapsed\(true\);/,
   );
   assert.match(radioBindings,
-    /'gev:cockpit-signal-expanded'[\s\S]*?setCockpitDisclosure\('display', false\);/,
+    /'airdnd:cockpit-signal-expanded'[\s\S]*?setCockpitDisclosure\('display', false\);/,
   );
   assert.match(radioBindings,
-    /'gev:cockpit-context-expanded'[\s\S]*?setPanelCollapsed\('data-panel', true\);/,
+    /'airdnd:cockpit-context-expanded'[\s\S]*?setPanelCollapsed\('data-panel', true\);/,
   );
   assert.match(
     ui,
@@ -369,11 +369,11 @@ test('Cockpit side surfaces behave as two single-expanded accordions', () => {
     'closing Data Layers must restore Contact only after an automatic collapse',
   );
   assert.match(setContextCollapsed.toString(),
-    /const wasCollapsed = this\.contextCollapsed;[\s\S]*?this\.active && wasCollapsed && !this\.contextCollapsed[\s\S]*?'gev:cockpit-context-expanded'/,
+    /const wasCollapsed = this\.contextCollapsed;[\s\S]*?this\.active && wasCollapsed && !this\.contextCollapsed[\s\S]*?'airdnd:cockpit-context-expanded'/,
     'Contact expansion must notify only on a collapsed-to-expanded transition',
   );
   assert.match(setSignalCollapsed.toString(),
-    /const wasCollapsed = this\.signalCollapsed;[\s\S]*?this\.active && wasCollapsed && !this\.signalCollapsed[\s\S]*?'gev:cockpit-signal-expanded'/,
+    /const wasCollapsed = this\.signalCollapsed;[\s\S]*?this\.active && wasCollapsed && !this\.signalCollapsed[\s\S]*?'airdnd:cockpit-signal-expanded'/,
     'Live Signals expansion must notify only on a collapsed-to-expanded transition',
   );
   assert.match(
@@ -668,7 +668,7 @@ test('Cockpit Display portals shared HUD, Detection, Parameters, and 3D controls
   assert.doesNotMatch(ui, /\['presets',/);
   assert.match(
     CockpitDisplayPortal.toString(),
-    /group\.before\(anchor\)[\s\S]*?window\.addEventListener\(\s*'gev:cockpit-mode-changed'/,
+    /group\.before\(anchor\)[\s\S]*?window\.addEventListener\(\s*'airdnd:cockpit-mode-changed'/,
   );
   assert.match(
     CockpitDisplayPortal.prototype.setActive.toString(),

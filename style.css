@@ -41,7 +41,7 @@
   pointer-events: none !important;
 }
 
-/* 2. Eliminate GEV civilian OSINT clutter, first-launch modals, and power-up chips */
+/* 2. Eliminate AirDnD civilian OSINT clutter, first-launch modals, and power-up chips */
 #first-run-launcher,
 #power-up-chip,
 #power-up-popover,

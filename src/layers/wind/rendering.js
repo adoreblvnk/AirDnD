@@ -518,7 +518,7 @@ export function createWindRendering({
     listen(media, 'change', motionChanged);
     listen(globalThis.document, 'visibilitychange', motionChanged);
     listen(globalThis, 'resize', cameraMoved);
-    listen(eventTarget, 'gev:map-stack-changed', rehome);
+    listen(eventTarget, 'airdnd:map-stack-changed', rehome);
     const viewer = viewerReady();
     const camera = viewer?.scene?.camera;
     listenScene(viewer?.scene?.preRender, viewChanged);

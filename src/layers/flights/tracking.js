@@ -64,7 +64,7 @@ export function createTracking({
     if (!bb?.position || !info) return false;
     if (flightState._trackedEntity)
       flightState._trackedEntity.gevSelectionOrigin = origin;
-    _emitAwarenessEvent('gev:awareness-subject-selected', {
+    _emitAwarenessEvent('airdnd:awareness-subject-selected', {
       layerId: 'flights',
       id: icao24,
       // Canonical display chain (callsign → registration → hex). Publishing a
@@ -401,9 +401,9 @@ export function createTracking({
     // 12 Hz icon instead of lagging ~1 s behind it.
     if (!flightState._trailHeadEntity && flightState._viewer) {
       flightState._trailHeadEntity = flightState._viewer.entities.add({
-        // 'gev-trail' namespace (round 6): claimed by trailRenderer's pick
+        // 'airdnd-trail' namespace (round 6): claimed by trailRenderer's pick
         // owner so a click on the head segment never reads as empty space.
-        id: `gev-trail:fl-head-${++flightState._trailHeadSeq}`,
+        id: `airdnd-trail:fl-head-${++flightState._trailHeadSeq}`,
         show: !flightState._cockpitContactMode,
         polyline: {
           positions: new Cesium.CallbackProperty(() => {
@@ -671,7 +671,7 @@ export function createTracking({
       flightState._billboards.get(clearedIcao),
     );
     clearTrackedSubjectContext('flights');
-    _emitAwarenessEvent('gev:awareness-subject-cleared', {
+    _emitAwarenessEvent('airdnd:awareness-subject-cleared', {
       layerId: 'flights',
       id: clearedIcao,
       origin,

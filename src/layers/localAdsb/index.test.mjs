@@ -1128,7 +1128,7 @@ test('a click on a local aircraft under an unowned or trail pick still selects i
       },
     },
   });
-  owners.set('trails', (id) => String(id).startsWith('gev-trail:'));
+  owners.set('trails', (id) => String(id).startsWith('airdnd-trail:'));
   owners.set('flights', (id) => id === 'abc123');
   t.after(() => layer.destroy());
   receiver.set({
@@ -1148,7 +1148,7 @@ test('a click on a local aircraft under an unowned or trail pick still selects i
   assert.deepEqual(calls.selected, ['local-adsb:abc123']);
 
   // The selected aircraft's trail crosses another local aircraft's marker.
-  harness.scene.pickResult = { id: { id: 'gev-trail:local-adsb-head-1' } };
+  harness.scene.pickResult = { id: { id: 'airdnd-trail:local-adsb-head-1' } };
   harness.scene.drillResult = [
     harness.scene.pickResult,
     { id: second, primitive: {} },

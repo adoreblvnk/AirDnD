@@ -1,4 +1,4 @@
-const STORE_KEY = '__gevContextStore';
+const STORE_KEY = '__airDndContextStore';
 
 function createStore() {
   return {
@@ -49,7 +49,7 @@ export function selectEntityContext(entity) {
   store.selectedAt = Date.now();
   const record = store.entities.get(contextId);
   window.dispatchEvent(
-    new CustomEvent('gev:entity-selected', { detail: record }),
+    new CustomEvent('airdnd:entity-selected', { detail: record }),
   );
   return record;
 }
@@ -63,8 +63,8 @@ export function selectEntityContext(entity) {
  * one slot, so a tracking layer that stays out of it is invisible to them
  * even while its readout card is on screen.
  *
- * Deliberately does NOT dispatch `gev:entity-selected`: tracking layers own a
- * separate publication lane (`gev:awareness-subject-selected`) that the
+ * Deliberately does NOT dispatch `airdnd:entity-selected`: tracking layers own a
+ * separate publication lane (`airdnd:awareness-subject-selected`) that the
  * readout and Contacts panel already consume, and a second event for the same
  * click would make those two surfaces fight over one subject.
  *
@@ -113,7 +113,7 @@ export function refreshTrackedSubjectContext(metadata) {
  * Drop a tracking layer's subject when the operator deselects it.
  *
  * Pairs with {@link selectTrackedSubjectContext} and stays event-free for the
- * same reason: `gev:awareness-subject-cleared` is the tracking layers' lane.
+ * same reason: `airdnd:awareness-subject-cleared` is the tracking layers' lane.
  * @param {string} layerId Owning layer.
  * @returns {void}
  */
@@ -160,7 +160,7 @@ export function clearSelectedEntityContextForLayer(
     store.selectedEntityId = null;
     store.selectedAt = null;
     window.dispatchEvent(
-      new CustomEvent('gev:entity-selection-cleared', {
+      new CustomEvent('airdnd:entity-selection-cleared', {
         detail: { layerId, reason: evicted ? 'evicted' : 'deliberate' },
       }),
     );
@@ -183,7 +183,7 @@ export function removeEntityContextsForLayer(layerId, { retainIds } = {}) {
     // A viewport refresh dropped the record out from under the selection —
     // the user did not deselect anything.
     window.dispatchEvent(
-      new CustomEvent('gev:entity-selection-cleared', {
+      new CustomEvent('airdnd:entity-selection-cleared', {
         detail: { layerId, reason: 'evicted' },
       }),
     );

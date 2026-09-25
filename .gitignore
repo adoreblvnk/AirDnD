@@ -12,6 +12,8 @@ dist
 screenshots/
 qa-shots/
 output/
+.airdnd-logs/
+.airdnd-cache/
 .gev-logs/
 .gev-cache/
 .DS_Store
@@ -20,4 +22,4 @@ output/
 pinokio/ENVIRONMENT
 pinokio/.installed
 .playwright-cli/
-.gev-cache/
+.airdnd-cache/

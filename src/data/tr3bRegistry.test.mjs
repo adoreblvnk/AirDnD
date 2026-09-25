@@ -31,7 +31,7 @@ import militaryFlightsLayer, {
   mapAnalystRecord as mapMilitaryAnalystRecord,
 } from './militaryFlights.js';
 import { findCompatibleHistoryIndex } from './militaryAwareness.js';
-import { createGevActionRunner } from '../voice/gevActions.js';
+import { createAirdndActionRunner } from '../voice/airdndActions.js';
 import { ANALYST_LAYERS, createAnalystEngine } from './analystEngine.js';
 
 /** Strip block and line comments so source pins scan CODE, not prose. */
@@ -437,7 +437,7 @@ test('cockpit class filter matches a converted contact end to end', async () => 
 
   // 1) Real voice normalization: what the cockpit path actually receives.
   const seen = [];
-  const runner = createGevActionRunner({
+  const runner = createAirdndActionRunner({
     viewer: {
       clock: { onTick: { addEventListener: () => () => {} } },
       scene: { canvas: { addEventListener() {}, removeEventListener() {} } },

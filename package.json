@@ -1,5 +1,5 @@
 {
-  "name": "gods-eye-view",
+  "name": "airdnd",
   "private": true,
   "version": "0.1.1",
   "description": "AirDnD: Autonomous Swarm Air Defense & Spatial Wargaming C2 for Singapore Littoral Airspace (SDTH 2026)",
@@ -194,7 +194,7 @@
     "./ui/composition": "./src/ui/composition.js",
     "./ui/hud": "./src/hud.js",
     "./standalone/settings": "./src/keySetup.js",
-    "./voice/actions": "./src/voice/gevActions.js",
+    "./voice/actions": "./src/voice/airdndActions.js",
     "./annotations": "./src/annotations/index.js",
     "./context": "./src/data/contextStore.js",
     "./build/html": {

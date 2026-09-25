@@ -1,4 +1,4 @@
-class GevSdrAudioPlayer extends AudioWorkletProcessor {
+class AirDnDSdrAudioPlayer extends AudioWorkletProcessor {
   constructor() {
     super();
     this.queue = [];
@@ -45,4 +45,4 @@ class GevSdrAudioPlayer extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('gev-sdr-audio-player', GevSdrAudioPlayer);
+registerProcessor('airdnd-sdr-audio-player', AirDnDSdrAudioPlayer);

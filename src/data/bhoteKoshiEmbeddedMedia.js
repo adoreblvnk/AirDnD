@@ -468,7 +468,7 @@ function isPortraitMedia(media = {}) {
 function ensureProviderConnections(documentRef, provider) {
   for (const origin of MEDIA_PRECONNECT_ORIGINS[provider] || []) {
     if (
-      documentRef.querySelector?.(`link[data-gev-media-preconnect="${origin}"]`)
+      documentRef.querySelector?.(`link[data-airdnd-media-preconnect="${origin}"]`)
     )
       continue;
     const link = documentRef.createElement('link');

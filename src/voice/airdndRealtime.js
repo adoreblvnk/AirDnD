@@ -1,4 +1,4 @@
-import { createGevActionRunner } from './gevActions.js';
+import { createAirdndActionRunner } from './airdndActions.js';
 import { createVoiceCommands } from './commands.js';
 export * from './realtimeController.js';
 
@@ -6,6 +6,6 @@ export * from './realtimeController.js';
 export function initGevVoiceCommands(options) {
   return createVoiceCommands({
     ...options,
-    runner: createGevActionRunner(options),
+    runner: createAirdndActionRunner(options),
   });
 }

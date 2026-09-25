@@ -361,7 +361,7 @@ test('OSM attribution introduces displayed data for five seconds, then stays dis
     assert.equal(h.credits.size, 1);
     const [credit] = h.credits;
     assert.equal(credit.showOnScreen, true);
-    assert.match(credit.html, /class="gev-alpr-credit">ALPR:/);
+    assert.match(credit.html, /class="airdnd-alpr-credit">ALPR:/);
     assert.match(
       credit.html,
       /href="https:\/\/www.openstreetmap.org\/copyright"/,
@@ -946,8 +946,8 @@ test('orbit cache hits and metadata refreshes preserve marker geometry and selec
     let selections = 0,
       clears = 0,
       collectionChanges = 0;
-    window.addEventListener('gev:entity-selected', () => selections++);
-    window.addEventListener('gev:entity-selection-cleared', () => clears++);
+    window.addEventListener('airdnd:entity-selected', () => selections++);
+    window.addEventListener('airdnd:entity-selection-cleared', () => clears++);
     h.source.entities.collectionChanged.addEventListener(
       (_collection, added, removed) => {
         collectionChanges += added.length + removed.length;

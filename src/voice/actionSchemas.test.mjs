@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { GEV_ACTION_SCHEMAS, createActionTools } from './actionSchemas.js';
-import { GEV_REALTIME_TOOLS } from '../../server/providers/openai/tools.js';
+import { AIRDND_ACTION_SCHEMAS, createActionTools } from './actionSchemas.js';
+import { AIRDND_REALTIME_TOOLS } from '../../server/providers/openai/tools.js';
 
 const stable = (value) =>
   Array.isArray(value)
@@ -17,7 +17,7 @@ const stable = (value) =>
 
 test('the complete Realtime tool payload pins the additive analyst, satellite and Local ADS-B release', () => {
   const digest = createHash('sha256')
-    .update(JSON.stringify(stable(GEV_REALTIME_TOOLS)))
+    .update(JSON.stringify(stable(AIRDND_REALTIME_TOOLS)))
     .digest('hex');
   assert.equal(
     digest,
@@ -44,10 +44,10 @@ test('descriptions customize wording without changing immutable shared arguments
     'string',
   );
   assert.throws(() => {
-    GEV_ACTION_SCHEMAS[0].parameters.properties.query.type = 'number';
+    AIRDND_ACTION_SCHEMAS[0].parameters.properties.query.type = 'number';
   }, TypeError);
   assert.equal(
-    JSON.stringify(GEV_ACTION_SCHEMAS).includes('"description"'),
+    JSON.stringify(AIRDND_ACTION_SCHEMAS).includes('"description"'),
     false,
   );
 });
@@ -79,7 +79,7 @@ test('metadata cannot add tools, fields, types or enum values', () => {
 });
 
 test('all legacy action arguments are byte-identical after removing the deliberate additions', () => {
-  const legacy = structuredClone(GEV_ACTION_SCHEMAS).filter(
+  const legacy = structuredClone(AIRDND_ACTION_SCHEMAS).filter(
     (tool) => tool.name !== 'next_satellite_pass',
   );
   const layers = legacy.find((tool) => tool.name === 'analyst_query').parameters

@@ -265,13 +265,13 @@ export function initTrackedReadout(viewer) {
     _selectedContext = null;
     if (!_viewer?.trackedEntity) clearTrackedSource();
   };
-  window.addEventListener('gev:entity-selected', _contextSelectedHandler);
+  window.addEventListener('airdnd:entity-selected', _contextSelectedHandler);
   window.addEventListener(
-    'gev:entity-selection-cleared',
+    'airdnd:entity-selection-cleared',
     _contextClearedHandler,
   );
   window.addEventListener(
-    'gev:awareness-subject-selected',
+    'airdnd:awareness-subject-selected',
     _aircraftSelectedHandler,
   );
   syncActiveEntity();
@@ -285,15 +285,15 @@ export function destroyTrackedReadout() {
   _trackedEntityChangedRemove?.();
   _trackedEntityChangedRemove = null;
   if (_contextSelectedHandler)
-    window.removeEventListener('gev:entity-selected', _contextSelectedHandler);
+    window.removeEventListener('airdnd:entity-selected', _contextSelectedHandler);
   if (_contextClearedHandler)
     window.removeEventListener(
-      'gev:entity-selection-cleared',
+      'airdnd:entity-selection-cleared',
       _contextClearedHandler,
     );
   if (_aircraftSelectedHandler)
     window.removeEventListener(
-      'gev:awareness-subject-selected',
+      'airdnd:awareness-subject-selected',
       _aircraftSelectedHandler,
     );
   _contextSelectedHandler = null;

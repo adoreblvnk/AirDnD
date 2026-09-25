@@ -28,7 +28,7 @@ const LEFT_STACK_OBSTACLE_SELECTOR = [
   '#cesium-credits .cesium-credit-textContainer',
   '#location-bar',
   '#control-panel',
-  '#gev-voice-control',
+  '#airdnd-voice-control',
   '#pp-toggles',
   '#param-slider-panel',
 ].join(', ');
@@ -58,7 +58,7 @@ const RIGHT_STACK_OBSTACLE_SELECTOR = [
   '#cesium-credits .cesium-credit-logoContainer',
   '#cesium-credits .cesium-credit-textContainer',
   '#command-dock',
-  '#gev-voice-control',
+  '#airdnd-voice-control',
 ].join(', ');
 export class PanelLayoutController {
   constructor({
@@ -406,7 +406,7 @@ export class PanelLayoutController {
       }, 300);
     };
     window.addEventListener(
-      'gev:cockpit-mode-changed',
+      'airdnd:cockpit-mode-changed',
       this._leftStackCockpitModeHandler,
     );
 
@@ -483,7 +483,7 @@ export class PanelLayoutController {
     }
     if (this._leftStackCockpitModeHandler)
       window.removeEventListener(
-        'gev:cockpit-mode-changed',
+        'airdnd:cockpit-mode-changed',
         this._leftStackCockpitModeHandler,
       );
     this._leftStackCockpitModeHandler = null;

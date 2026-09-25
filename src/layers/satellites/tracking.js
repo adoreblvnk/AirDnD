@@ -119,7 +119,7 @@ export function createTracking({ state: layerState, services, parts, source }) {
     parts.labels._syncIssOverlay();
     clearTrackedSubjectContext('satellites');
     layerState._contextRefreshedAtMs = 0;
-    _emitAwarenessEvent('gev:awareness-subject-cleared', {
+    _emitAwarenessEvent('airdnd:awareness-subject-cleared', {
       layerId: 'satellites',
       id: clearedNorad,
       origin,
@@ -449,7 +449,7 @@ export function createTracking({ state: layerState, services, parts, source }) {
     layerState._trackedEntity.gevDisplayPosition = _trackedDisplayCached;
     _updateTrackedSatelliteLabelModel(initialPos?.altitude ?? null);
 
-    _emitAwarenessEvent('gev:awareness-subject-selected', {
+    _emitAwarenessEvent('airdnd:awareness-subject-selected', {
       layerId: 'satellites',
       id: noradId,
       label: name,

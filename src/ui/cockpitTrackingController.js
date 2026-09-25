@@ -26,7 +26,7 @@ export function dispatchCockpitModeChanged(active, info = null) {
       ? info.layerId
       : null;
   window.dispatchEvent(
-    new CustomEvent('gev:cockpit-mode-changed', {
+    new CustomEvent('airdnd:cockpit-mode-changed', {
       detail: { active: active === true, subjectId, layerId },
     }),
   );

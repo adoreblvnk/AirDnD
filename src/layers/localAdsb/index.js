@@ -55,7 +55,7 @@ const RENDER_HOLD_ID = 'local-adsb';
 /** Picks looked through under a click for a local aircraft. */
 const CLICK_DRILL_LIMIT = 8;
 /** Trail lines pass through their aircraft; a click never stops on one. */
-const TRAIL_PICK_PREFIX = 'gev-trail:';
+const TRAIL_PICK_PREFIX = 'airdnd-trail:';
 /** The DISPLAY rail's first-run 3D preference, used when no reader is wired. */
 const DEFAULT_DISPLAY = Object.freeze({
   models3d: true,
@@ -387,9 +387,9 @@ export function createLocalAdsbLayer({
     };
     // Live head: last heard fix → the extrapolated marker, every frame.
     selectedTrail.head = viewer.entities.add({
-      // 'gev-trail' namespace: claimed by the trail pick owner so a click on
+      // 'airdnd-trail' namespace: claimed by the trail pick owner so a click on
       // the head segment never reads as empty space.
-      id: `gev-trail:local-adsb-head-${++trailHeadSeq}`,
+      id: `airdnd-trail:local-adsb-head-${++trailHeadSeq}`,
       polyline: {
         positions: new Cesium.CallbackProperty(() => {
           const current = markers.get(selectedTrail?.id);

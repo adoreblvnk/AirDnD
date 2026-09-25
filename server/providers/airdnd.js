@@ -1,5 +1,5 @@
 // ==============================================================================
-// AirDnD Tactical Provider Proxy for God's Eye View Backend
+// AirDnD Tactical Provider Proxy for AirDnD Backend
 // Provides /api/esp32/stream, /api/cot, and /api/ai/bda
 // ==============================================================================
 

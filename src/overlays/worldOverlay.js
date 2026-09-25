@@ -102,7 +102,7 @@ export const WORLD_OVERLAY_OCCLUDER_SELECTORS = Object.freeze([
   '.weather-summary',
   '#pp-toggles',
   '#command-dock',
-  '#gev-voice-control',
+  '#airdnd-voice-control',
   '#cesium-credits',
   '.hud-top-left',
   '.hud-top-right',
@@ -2629,7 +2629,7 @@ function drawWorldOverlay() {
 
 function createDevFacade() {
   if (typeof window === 'undefined' || import.meta.env?.DEV !== true) return;
-  window.__gevWorldOverlay = { getDiagnostics: getWorldOverlayDiagnostics };
+  window.__airDndWorldOverlay = { getDiagnostics: getWorldOverlayDiagnostics };
 }
 
 /**
@@ -2656,7 +2656,7 @@ export function initWorldOverlay(viewer) {
     _cockpitActive = event?.detail?.active === true;
     invalidateHost();
   };
-  window.addEventListener('gev:cockpit-mode-changed', _cockpitModeHandler);
+  window.addEventListener('airdnd:cockpit-mode-changed', _cockpitModeHandler);
   _removePostRender =
     viewer.scene.postRender.addEventListener(drawWorldOverlay);
   if (viewer.camera?.moveEnd?.addEventListener) {
@@ -2688,7 +2688,7 @@ export function destroyWorldOverlay() {
   _removeMoveEnd?.();
   _removeMoveEnd = null;
   if (_cockpitModeHandler && typeof window !== 'undefined') {
-    window.removeEventListener('gev:cockpit-mode-changed', _cockpitModeHandler);
+    window.removeEventListener('airdnd:cockpit-mode-changed', _cockpitModeHandler);
   }
   _cockpitModeHandler = null;
   if (_windowResizeHandler && typeof window !== 'undefined') {
@@ -2711,9 +2711,9 @@ export function destroyWorldOverlay() {
   _detectionSurface?.remove?.();
   if (
     typeof window !== 'undefined' &&
-    window.__gevWorldOverlay?.getDiagnostics === getWorldOverlayDiagnostics
+    window.__airDndWorldOverlay?.getDiagnostics === getWorldOverlayDiagnostics
   ) {
-    delete window.__gevWorldOverlay;
+    delete window.__airDndWorldOverlay;
   }
   _sources.clear();
   _sourceList.length = 0;

@@ -265,7 +265,7 @@ async function openPage(browser, base) {
     await page.goto(
       `${base}/#v=2&lat=30&lon=-95&alt=17000000&heading=0&pitch=-90&roll=0`,
     );
-    await page.waitForFunction(() => !!window.__godsEyeView?.viewer);
+    await page.waitForFunction(() => !!window.__airDnD?.viewer);
     return page;
   } catch (error) {
     await page.close();
@@ -315,7 +315,7 @@ function counts(cameras, entries) {
 async function main() {
   const started = Date.now();
   const options = parseArgs(process.argv.slice(2));
-  const base = (process.env.GEV_BASE || 'http://localhost:4173').replace(
+  const base = (process.env.AIRDND_BASE || 'http://localhost:4173').replace(
     /\/+$/,
     '',
   );
@@ -409,18 +409,18 @@ async function main() {
         sample: (batch) =>
           withDeadline(
             page.evaluate(async (cameras) => {
-              const gev = window.__godsEyeView;
-              const scene = gev.viewer.scene;
-              const Cartesian3 = gev.viewer.camera.position.constructor;
+              const airdnd = window.__airDnD;
+              const scene = airdnd.viewer.scene;
+              const Cartesian3 = airdnd.viewer.camera.position.constructor;
               const Cartographic =
-                gev.viewer.camera.positionCartographic.constructor;
+                airdnd.viewer.camera.positionCartographic.constructor;
               const lat =
                 cameras.reduce((sum, camera) => sum + camera.pose.lat, 0) /
                 cameras.length;
               const lon =
                 cameras.reduce((sum, camera) => sum + camera.pose.lon, 0) /
                 cameras.length;
-              gev.viewer.camera.setView({
+              airdnd.viewer.camera.setView({
                 destination: Cartesian3.fromDegrees(lon, lat, 3000),
                 orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
               });

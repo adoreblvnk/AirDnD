@@ -1,5 +1,5 @@
 // ==============================================================================
-// AirDnD Tactical Air Defense Layer for God's Eye View
+// AirDnD Tactical Air Defense Layer for AirDnD
 // Implements 3-Step Guided C2, 12-Threat Focused Dogfight, and ESP32 HIL
 // ==============================================================================
 

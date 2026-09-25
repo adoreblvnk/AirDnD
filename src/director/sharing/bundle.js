@@ -73,7 +73,7 @@ export async function parseSceneShare(text, { signal } = {}) {
   } catch {
     fail('$', 'invalid JSON');
   }
-  if (input?.format !== 'gev-scene-bundle')
+  if (input?.format !== 'airdnd-scene-bundle')
     return { project: parseSceneDocument(text), assets: new Map() };
   fields(input, '$', ['format', 'version', 'project', 'assets']);
   if (input.version !== 1) fail('version', 'unsupported bundle version');
@@ -184,7 +184,7 @@ export async function createSceneBundle(
     pack.sha256 = entry.sha256;
   }
   const text = JSON.stringify({
-    format: 'gev-scene-bundle',
+    format: 'airdnd-scene-bundle',
     version: 1,
     project: copy,
     assets: assets.map(({ byteLength, ...entry }) => entry),

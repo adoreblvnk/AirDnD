@@ -32,7 +32,7 @@ import {
   shareCacheNeedsHeal,
   shareableDetectionState,
 } from '../contactsDetectionPolicy.js';
-const DETECTION_ALLOCATION_STORAGE_KEY = 'gev:detection-allocation:v1';
+const DETECTION_ALLOCATION_STORAGE_KEY = 'airdnd:detection-allocation:v1';
 
 /** Own visual preferences, detection overrides and display-control state. */
 export class VisualSettings {
@@ -374,7 +374,7 @@ export class VisualSettings {
     // EFFECTIVE style — a cockpit vision override sets no map style, so the
     // map's own style event never fires for it.
     window.dispatchEvent(
-      new CustomEvent('gev:vision-change', {
+      new CustomEvent('airdnd:vision-change', {
         detail: {
           style: effective,
           cockpit: Boolean(cockpitMode && cockpitMode !== 'optical'),
@@ -1494,7 +1494,7 @@ export class VisualSettings {
     setDetectionStyle(styleName);
     this._syncIrBoost();
     window.dispatchEvent(
-      new CustomEvent('gev:style-change', {
+      new CustomEvent('airdnd:style-change', {
         detail: { style: styleName },
       }),
     );
