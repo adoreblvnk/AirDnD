@@ -1,0 +1,9 @@
+{
+  "claim_delay_step_s": 0.15,
+  "coverage_window_s": 4.2,
+  "minimum_separation_m": 8.0,
+  "switch_margin_base": 0.05,
+  "switch_margin_progress": 0.1,
+  "switch_ticks": 3,
+  "tie_epsilon": 0.02
+}

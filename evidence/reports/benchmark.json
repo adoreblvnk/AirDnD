@@ -1,0 +1,434 @@
+{
+  "calibration": {
+    "brier_score": 0.21495340807620014,
+    "ece": 0.0527512915317262,
+    "reliability_bins": [
+      {
+        "count": 3234,
+        "lower": 0.7000000000000001,
+        "mean_prediction": 0.7472472717419921,
+        "observed_frequency": 0.6944959802102659,
+        "upper": 0.8
+      }
+    ],
+    "samples": 3234
+  },
+  "claims": {
+    "ac_020": "pass",
+    "ac_021": "fail",
+    "ac_031": "pass",
+    "note": "AC pass claims are contingent on generated simulation results"
+  },
+  "evidence_class": "simulation_evidence",
+  "git_revision": "e17e5db5a1ab05ceafff02120b0cd51449bbd546",
+  "host": {
+    "machine": "arm64",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7"
+  },
+  "hostiles": 100,
+  "interceptors": 125,
+  "learned_model_runtime_used": true,
+  "methods": [
+    "naive_static",
+    "independent_greedy",
+    "deterministic_ablation",
+    "airdnd",
+    "ortools_teacher"
+  ],
+  "observer_duplicate_reduction": {
+    "ci95_high": 12.18477291300205,
+    "ci95_low": 9.548560420331285,
+    "mean": 10.866666666666667,
+    "median": 11.0,
+    "n": 30,
+    "std": 3.683451654624236
+  },
+  "paired_comparisons": {
+    "deterministic_ablation": {
+      "leakage_reduction_absolute": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "leakage_reduction_relative_mean": 0.0
+    },
+    "independent_greedy": {
+      "leakage_reduction_absolute": {
+        "ci95_high": 0.30182420199937565,
+        "ci95_low": 0.2741757980006244,
+        "mean": 0.28800000000000003,
+        "median": 0.29000000000000004,
+        "n": 30,
+        "std": 0.03863177180901036
+      },
+      "leakage_reduction_relative_mean": 0.5339925834363413
+    },
+    "naive_static": {
+      "leakage_reduction_absolute": {
+        "ci95_high": 0.10408611506660766,
+        "ci95_low": 0.08924721826672567,
+        "mean": 0.09666666666666666,
+        "median": 0.09999999999999999,
+        "n": 30,
+        "std": 0.020733669657618848
+      },
+      "leakage_reduction_relative_mean": 0.2777777777777778
+    }
+  },
+  "paired_seed_count": 30,
+  "safety_note": "INS, barometer, IFF, path generation, collision filtering, and engagement outcomes are simulation evidence; collision filtering uses vendored snape/RVO2-3D revision c726b3c537639ca2cf202c49bcae0f6b7889f344.",
+  "schema_version": "1.0",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+  ],
+  "state_schema_separation": [
+    "simulator_truth",
+    "agent_local",
+    "presentation"
+  ],
+  "statistics": {
+    "airdnd": {
+      "completed_runs": 30,
+      "cumulative_neutralization": {
+        "ci95_high": 0.7625333916886482,
+        "ci95_low": 0.7347999416446852,
+        "mean": 0.7486666666666667,
+        "median": 0.75,
+        "n": 30,
+        "std": 0.03875060251663578
+      },
+      "duplicate_pursuit": {
+        "ci95_high": 25.41368989800858,
+        "ci95_low": 25.052976768658088,
+        "denominator": 3000,
+        "mean": 25.233333333333334,
+        "median": 25.0,
+        "n": 30,
+        "numerator": 757,
+        "std": 0.5040069329937309
+      },
+      "entity_drops": 0,
+      "friendly_collisions": 0,
+      "latency": {
+        "p50_ms": 18.211808500000004,
+        "p95_ms": 19.038535398799997,
+        "p99_ms": 22.364523810000005
+      },
+      "leakage": {
+        "ci95_high": 0.2652000583553149,
+        "ci95_low": 0.2374666083113518,
+        "denominator": 3000,
+        "mean": 0.25133333333333335,
+        "median": 0.25,
+        "n": 30,
+        "numerator": 754,
+        "std": 0.03875060251663578
+      },
+      "minimum_separation_m": {
+        "ci95_high": 59.59445771047674,
+        "ci95_low": 59.56648123150246,
+        "mean": 59.5804694709896,
+        "median": 59.59239699626662,
+        "n": 30,
+        "std": 0.03909017503516807
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "retained_coverage": {
+        "ci95_high": 0.14390794298766502,
+        "ci95_low": 0.13129205701233498,
+        "mean": 0.1376,
+        "median": 0.136,
+        "n": 30,
+        "std": 0.01762756462143193
+      }
+    },
+    "deterministic_ablation": {
+      "completed_runs": 30,
+      "cumulative_neutralization": {
+        "ci95_high": 0.7625333916886482,
+        "ci95_low": 0.7347999416446852,
+        "mean": 0.7486666666666667,
+        "median": 0.75,
+        "n": 30,
+        "std": 0.03875060251663578
+      },
+      "duplicate_pursuit": {
+        "ci95_high": 25.41368989800858,
+        "ci95_low": 25.052976768658088,
+        "denominator": 3000,
+        "mean": 25.233333333333334,
+        "median": 25.0,
+        "n": 30,
+        "numerator": 757,
+        "std": 0.5040069329937309
+      },
+      "entity_drops": 0,
+      "friendly_collisions": 0,
+      "latency": {
+        "p50_ms": 17.600934672,
+        "p95_ms": 18.069212071999996,
+        "p99_ms": 18.28487785632
+      },
+      "leakage": {
+        "ci95_high": 0.2652000583553149,
+        "ci95_low": 0.2374666083113518,
+        "denominator": 3000,
+        "mean": 0.25133333333333335,
+        "median": 0.25,
+        "n": 30,
+        "numerator": 754,
+        "std": 0.03875060251663578
+      },
+      "minimum_separation_m": {
+        "ci95_high": 59.59445771047674,
+        "ci95_low": 59.56648123150246,
+        "mean": 59.5804694709896,
+        "median": 59.59239699626662,
+        "n": 30,
+        "std": 0.03909017503516807
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "retained_coverage": {
+        "ci95_high": 0.14390794298766502,
+        "ci95_low": 0.13129205701233498,
+        "mean": 0.1376,
+        "median": 0.136,
+        "n": 30,
+        "std": 0.01762756462143193
+      }
+    },
+    "independent_greedy": {
+      "completed_runs": 30,
+      "cumulative_neutralization": {
+        "ci95_high": 0.47295307157590966,
+        "ci95_low": 0.4483802617574237,
+        "mean": 0.46066666666666667,
+        "median": 0.46,
+        "n": 30,
+        "std": 0.034334393466502994
+      },
+      "duplicate_pursuit": {
+        "ci95_high": 37.430166837690656,
+        "ci95_low": 34.76983316230935,
+        "denominator": 3000,
+        "mean": 36.1,
+        "median": 36.0,
+        "n": 30,
+        "numerator": 1083,
+        "std": 3.7171550114718577
+      },
+      "entity_drops": 0,
+      "friendly_collisions": 0,
+      "latency": {
+        "p50_ms": 0.388539832,
+        "p95_ms": 0.43451714759999993,
+        "p99_ms": 1.2173637685600012
+      },
+      "leakage": {
+        "ci95_high": 0.5516197382425763,
+        "ci95_low": 0.5270469284240904,
+        "denominator": 3000,
+        "mean": 0.5393333333333333,
+        "median": 0.54,
+        "n": 30,
+        "numerator": 1618,
+        "std": 0.034334393466502994
+      },
+      "minimum_separation_m": {
+        "ci95_high": 59.69315803481595,
+        "ci95_low": 59.65939631658317,
+        "mean": 59.67627717569956,
+        "median": 59.680080285925705,
+        "n": 30,
+        "std": 0.047173608816905334
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "retained_coverage": {
+        "ci95_high": 0.4772984849057738,
+        "ci95_low": 0.45550151509422626,
+        "mean": 0.46640000000000004,
+        "median": 0.464,
+        "n": 30,
+        "std": 0.03045584706898916
+      }
+    },
+    "naive_static": {
+      "completed_runs": 30,
+      "cumulative_neutralization": {
+        "ci95_high": 0.664967161353327,
+        "ci95_low": 0.6390328386466728,
+        "mean": 0.6519999999999999,
+        "median": 0.65,
+        "n": 30,
+        "std": 0.03623676928584918
+      },
+      "duplicate_pursuit": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "denominator": 3000,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "numerator": 0,
+        "std": 0.0
+      },
+      "entity_drops": 0,
+      "friendly_collisions": 0,
+      "latency": {
+        "p50_ms": 0.526200996,
+        "p95_ms": 0.7307702999999991,
+        "p99_ms": 1.2238149400000002
+      },
+      "leakage": {
+        "ci95_high": 0.360967161353327,
+        "ci95_low": 0.33503283864667294,
+        "denominator": 3000,
+        "mean": 0.348,
+        "median": 0.35,
+        "n": 30,
+        "numerator": 1044,
+        "std": 0.03623676928584917
+      },
+      "minimum_separation_m": {
+        "ci95_high": 59.64925318124519,
+        "ci95_low": 59.64549998693128,
+        "mean": 59.647376584088235,
+        "median": 59.647445477800346,
+        "n": 30,
+        "std": 0.005244156092937643
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "retained_coverage": {
+        "ci95_high": 0.24799999999999997,
+        "ci95_low": 0.24799999999999997,
+        "mean": 0.24799999999999997,
+        "median": 0.248,
+        "n": 30,
+        "std": 0.0
+      }
+    },
+    "ortools_teacher": {
+      "completed_runs": 30,
+      "cumulative_neutralization": {
+        "ci95_high": 0.7081984660955325,
+        "ci95_low": 0.680468200571134,
+        "mean": 0.6943333333333332,
+        "median": 0.69,
+        "n": 30,
+        "std": 0.03874615294214499
+      },
+      "duplicate_pursuit": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "denominator": 3000,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "numerator": 0,
+        "std": 0.0
+      },
+      "entity_drops": 0,
+      "friendly_collisions": 0,
+      "latency": {
+        "p50_ms": 0.693213168,
+        "p95_ms": 0.7208673976,
+        "p99_ms": 0.9629040585600002
+      },
+      "leakage": {
+        "ci95_high": 0.31953179942886584,
+        "ci95_low": 0.29180153390446745,
+        "denominator": 3000,
+        "mean": 0.30566666666666664,
+        "median": 0.31,
+        "n": 30,
+        "numerator": 917,
+        "std": 0.038746152942145
+      },
+      "minimum_separation_m": {
+        "ci95_high": 59.8886814387881,
+        "ci95_low": 59.882273766155734,
+        "mean": 59.885477602471916,
+        "median": 59.887345028179176,
+        "n": 30,
+        "std": 0.008953129698601094
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "retained_coverage": {
+        "ci95_high": 0.2,
+        "ci95_low": 0.2,
+        "mean": 0.2,
+        "median": 0.2,
+        "n": 30,
+        "std": 0.0
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "evidence_class": "simulation_evidence",
+  "results": [
+    {
+      "completed": true,
+      "elapsed_ms": 37.736084,
+      "entity_drops": 0,
+      "hostiles": 20,
+      "per_entity_ms": 1.8868041999999998
+    },
+    {
+      "completed": true,
+      "elapsed_ms": 190.537333,
+      "entity_drops": 0,
+      "hostiles": 40,
+      "per_entity_ms": 4.763433324999999
+    },
+    {
+      "completed": true,
+      "elapsed_ms": 551.733291,
+      "entity_drops": 0,
+      "hostiles": 60,
+      "per_entity_ms": 9.19555485
+    },
+    {
+      "completed": true,
+      "elapsed_ms": 1230.264833,
+      "entity_drops": 0,
+      "hostiles": 80,
+      "per_entity_ms": 15.3783104125
+    },
+    {
+      "completed": true,
+      "elapsed_ms": 2283.9635,
+      "entity_drops": 0,
+      "hostiles": 100,
+      "per_entity_ms": 22.839634999999998
+    }
+  ]
+}

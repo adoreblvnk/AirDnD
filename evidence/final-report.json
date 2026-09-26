@@ -1,0 +1,65 @@
+{
+  "acceptance": {
+    "AC-019": {
+      "passed": true,
+      "scope": "Apple Silicon host inference only"
+    },
+    "AC-020": {
+      "passed": true,
+      "scope": "generated paired simulation"
+    },
+    "AC-021": {
+      "passed": false,
+      "scope": "generated paired simulation"
+    },
+    "AC-026": {
+      "passed": true,
+      "scope": "benchmark host identity"
+    },
+    "AC-031": {
+      "passed": true,
+      "scope": "generated paired simulation"
+    }
+  },
+  "benchmark_report": "reports/benchmark.json",
+  "configuration": {
+    "frozen_parameters": {
+      "claim_delay_step_s": 0.15,
+      "coverage_window_s": 4.2,
+      "minimum_separation_m": 8.0,
+      "switch_margin_base": 0.05,
+      "switch_margin_progress": 0.1,
+      "switch_ticks": 3,
+      "tie_epsilon": 0.02
+    },
+    "hostiles": 100,
+    "interceptors": 125,
+    "methods": [
+      "naive_static",
+      "independent_greedy",
+      "deterministic_ablation",
+      "airdnd",
+      "ortools_teacher"
+    ],
+    "paired_seeds": 30
+  },
+  "configuration_hash": "d0ab6d35b96cae8c264d9582b953dca235a3dc742a44cca0a25332bd8cd477ff",
+  "evidence_class": "simulation_evidence",
+  "final": true,
+  "git_revision": "e17e5db5a1ab05ceafff02120b0cd51449bbd546",
+  "host": {
+    "artifact": "reports/system_profile.json",
+    "machine_model": "Mac15,13",
+    "memory_gb": 24,
+    "model": "MacBook Air Apple M3",
+    "privacy": "Serial number, platform UUID, and device identifiers intentionally omitted",
+    "processor_layout": "proc 8:4:4:0",
+    "system_profile_artifact": "reports/system_profile.json"
+  },
+  "limitations": [
+    "Collision filtering uses the official vendored snape/RVO2-3D implementation; separation remains simulation evidence, not a physical guarantee",
+    "INS, barometer, IFF, guidance, engagement, and separation results are simulation evidence",
+    "No flight or hardware validation is implied"
+  ],
+  "paired_seeds": 30
+}

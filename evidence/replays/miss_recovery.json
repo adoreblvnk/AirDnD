@@ -1,0 +1,920 @@
+{
+  "config": {
+    "force_first_miss": true,
+    "force_first_success": false,
+    "hostiles": 1,
+    "interceptors": 3,
+    "method": "airdnd",
+    "minimum_separation_m": 8.0,
+    "reserve_ratio": 0.67,
+    "seed": 1
+  },
+  "events": [
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "trigger": "preloaded_initial_screen"
+      },
+      "kind": "mobilized",
+      "presentation": {
+        "frame": 0,
+        "label": "initial mobilization"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "interceptor_id": "I000",
+        "phase": "initial"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "belief": {
+          "action_success_probability": 0.7475864887237549,
+          "confidence": 0.9281086325645447,
+          "friendly_coverage_probability": 0.5036953091621399,
+          "predicted_coverage_expiry": 12.329269409179688,
+          "predicted_intercept_point": [
+            -6.253961563110352,
+            12.391788482666016,
+            13.095675468444824
+          ],
+          "predicted_intercept_time": 13.197980880737305,
+          "target_leak_probability": 0.9995204210281372
+        },
+        "belief_source": "trained_multihead_model",
+        "downstream_policy": "mission_utility+deterministic_mobilization_v1",
+        "hysteresis_track": "I000-f736bc91",
+        "inference_executed": true,
+        "local_track_id": "I000-f736bc91",
+        "utility": 0.27085274264800396
+      },
+      "kind": "policy_decision",
+      "presentation": {
+        "frame": 1,
+        "label": "local policy decision"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "hostile_id": "H000",
+        "interceptor_id": "I000",
+        "target_position": [
+          0.0,
+          1406.911684,
+          195.04637
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "trigger": "observed_friendly_coverage"
+      },
+      "kind": "observer_ready",
+      "presentation": {
+        "frame": 2,
+        "label": "reserve observer ready"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "interceptor_id": "I001",
+        "phase": "reserve"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "belief": {
+          "action_success_probability": 0.7473114728927612,
+          "confidence": 0.9275847673416138,
+          "friendly_coverage_probability": 0.5023030638694763,
+          "predicted_coverage_expiry": 12.307188987731934,
+          "predicted_intercept_point": [
+            -6.249717712402344,
+            12.377076148986816,
+            13.075897216796875
+          ],
+          "predicted_intercept_time": 13.174065589904785,
+          "target_leak_probability": 0.9995168447494507
+        },
+        "belief_source": "trained_multihead_model",
+        "downstream_policy": "mission_utility+deterministic_mobilization_v1",
+        "hysteresis_track": "I001-971441bc",
+        "inference_executed": true,
+        "local_track_id": "I001-971441bc",
+        "utility": 0.2717549282243802
+      },
+      "kind": "policy_decision",
+      "presentation": {
+        "frame": 3,
+        "label": "local policy decision"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "hostile_id": "H000",
+        "interceptor_id": "I001",
+        "target_position": [
+          0.0,
+          1406.911684,
+          195.04637
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "trigger": "observed_friendly_coverage"
+      },
+      "kind": "observer_ready",
+      "presentation": {
+        "frame": 4,
+        "label": "reserve observer ready"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "interceptor_id": "I002",
+        "phase": "reserve"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "belief": {
+          "action_success_probability": 0.7473118305206299,
+          "confidence": 0.9275816679000854,
+          "friendly_coverage_probability": 0.5022771954536438,
+          "predicted_coverage_expiry": 12.307077407836914,
+          "predicted_intercept_point": [
+            -6.249669075012207,
+            12.37700080871582,
+            13.075796127319336
+          ],
+          "predicted_intercept_time": 13.173884391784668,
+          "target_leak_probability": 0.9995168447494507
+        },
+        "belief_source": "trained_multihead_model",
+        "downstream_policy": "mission_utility+deterministic_mobilization_v1",
+        "hysteresis_track": "I002-68c75e73",
+        "inference_executed": true,
+        "local_track_id": "I002-68c75e73",
+        "utility": 0.2717744285616185
+      },
+      "kind": "policy_decision",
+      "presentation": {
+        "frame": 5,
+        "label": "local policy decision"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "hostile_id": "H000",
+        "interceptor_id": "I002",
+        "target_position": [
+          0.0,
+          1406.911684,
+          195.04637
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "local_track_id": "I000-f736bc91",
+        "noisy_position": [
+          2.91494,
+          1407.720636,
+          196.315276
+        ]
+      },
+      "kind": "track_observed",
+      "presentation": {
+        "evaluator_overlay": false,
+        "frame": 6,
+        "label": "local observation"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "hostile_id": "H000",
+        "position": [
+          0.0,
+          1406.911684,
+          195.04637
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I000-f736bc91",
+        "navigation_position": [
+          0.0,
+          0.04996190071105958,
+          249.9964873002842
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          0.0,
+          0.999238039401004,
+          -0.039029996336634974
+        ],
+        "safe_velocity": [
+          0.0,
+          0.9992380142211914,
+          -0.03902999684214592
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 7,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 0.0,
+      "truth": {
+        "from_position": [
+          0.0,
+          0.0,
+          250.0
+        ],
+        "interceptor_id": "I000",
+        "nearest_friendly_separation_m": 60.00008333327127,
+        "to_position": [
+          0.0,
+          0.099924,
+          249.996097
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I000-f736bc91",
+        "navigation_position": [
+          0.0,
+          0.1998476028442383,
+          249.98875936090946
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          0.0,
+          1.998476053624202,
+          -0.07805999312740405
+        ],
+        "safe_velocity": [
+          0.0,
+          1.9984760284423828,
+          -0.07805999368429184
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 8,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 0.1,
+      "truth": {
+        "from_position": [
+          0.0,
+          0.099924,
+          249.996097
+        ],
+        "interceptor_id": "I000",
+        "nearest_friendly_separation_m": 60.000749995274845,
+        "to_position": [
+          0.0,
+          0.299771,
+          249.988291
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I000-f736bc91",
+        "navigation_position": [
+          0.0,
+          0.44965710639953616,
+          249.97706597419082
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          0.0,
+          2.9977140678475482,
+          -0.11708998991439018
+        ],
+        "safe_velocity": [
+          0.0,
+          2.997714042663574,
+          -0.11708998680114746
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 9,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 0.2,
+      "truth": {
+        "from_position": [
+          0.0,
+          0.299771,
+          249.988291
+        ],
+        "interceptor_id": "I000",
+        "nearest_friendly_separation_m": 60.002999924852766,
+        "to_position": [
+          0.0,
+          0.599543,
+          249.976582
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "identity_state": "HOSTILE EVIDENCE",
+        "local_track_id": "I000-f736bc91",
+        "orca_plane_count": 2,
+        "preferred_velocity": [
+          0.0,
+          2.9977140678475482,
+          -0.11708998991439018
+        ],
+        "safe_velocity": [
+          0.0,
+          2.997714042663574,
+          -0.11708998680114746
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "engagement_attempt",
+      "presentation": {
+        "frame": 10,
+        "label": "simulated engagement"
+      },
+      "time_s": 0.30000000000000004,
+      "truth": {
+        "hostile_id": "H000",
+        "interceptor_id": "I000",
+        "outcome": false,
+        "shared_failure_factor": 0.74075657,
+        "success_probability": 0.59260526
+      }
+    },
+    {
+      "agent_local": {
+        "coverage_probability": 0.0
+      },
+      "kind": "coverage_expired",
+      "presentation": {
+        "frame": 11,
+        "label": "coverage expired"
+      },
+      "time_s": 4.6000000000000005,
+      "truth": {
+        "hostile_id": "H000"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "trigger": "locally_observed_coverage_expiry"
+      },
+      "kind": "mobilized",
+      "presentation": {
+        "frame": 12,
+        "label": "reserve mobilization"
+      },
+      "time_s": 4.750000000000001,
+      "truth": {
+        "interceptor_id": "I001",
+        "phase": "reserve"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "claim_delay_s": 0.15,
+        "local_track_id": "I001-971441bc",
+        "priority_rank": 1,
+        "trigger": "locally_observed_coverage_expiry"
+      },
+      "kind": "observer_claim",
+      "presentation": {
+        "frame": 13,
+        "label": "observation-driven recovery"
+      },
+      "time_s": 4.750000000000001,
+      "truth": {
+        "hostile_id": "H000"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I001-971441bc",
+        "navigation_position": [
+          59.99787122681737,
+          0.049916598200798044,
+          249.9964904854074
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          -0.042575464923813436,
+          0.9983319841048065,
+          -0.03899460603572872
+        ],
+        "safe_velocity": [
+          -0.04257546365261078,
+          0.9983319640159607,
+          -0.03899460658431053
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 14,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 4.750000000000001,
+      "truth": {
+        "from_position": [
+          60.0,
+          0.0,
+          250.0
+        ],
+        "interceptor_id": "I001",
+        "nearest_friendly_separation_m": 59.9978266542432,
+        "to_position": [
+          59.995742,
+          0.099833,
+          249.996101
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I001-971441bc",
+        "navigation_position": [
+          59.991484907269474,
+          0.19966639280319218,
+          249.9887695533037
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          -0.08515092859079765,
+          1.996663948121952,
+          -0.07798921257401362
+        ],
+        "safe_velocity": [
+          -0.08515092730522156,
+          1.9966639280319214,
+          -0.07798921316862106
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 15,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 4.8500000000000005,
+      "truth": {
+        "from_position": [
+          59.995742,
+          0.099833,
+          249.996101
+        ],
+        "interceptor_id": "I001",
+        "nearest_friendly_separation_m": 59.987978876868944,
+        "to_position": [
+          59.987227,
+          0.2995,
+          249.988302
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I001-971441bc",
+        "navigation_position": [
+          59.98084104135632,
+          0.4492493808269501,
+          249.97708676950634
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          -0.12772639225884014,
+          2.9949959121391845,
+          -0.11698381910890965
+        ],
+        "safe_velocity": [
+          -0.12772639095783234,
+          2.9949958324432373,
+          -0.1169838160276413
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 16,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 4.95,
+      "truth": {
+        "from_position": [
+          59.987227,
+          0.2995,
+          249.988302
+        ],
+        "interceptor_id": "I001",
+        "nearest_friendly_separation_m": 59.97445472427608,
+        "to_position": [
+          59.974455,
+          0.598999,
+          249.976603
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "identity_state": "HOSTILE EVIDENCE",
+        "local_track_id": "I001-971441bc",
+        "orca_plane_count": 2,
+        "preferred_velocity": [
+          -0.12772639225884014,
+          2.9949959121391845,
+          -0.11698381910890965
+        ],
+        "safe_velocity": [
+          -0.12772639095783234,
+          2.9949958324432373,
+          -0.1169838160276413
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "engagement_attempt",
+      "presentation": {
+        "frame": 17,
+        "label": "simulated engagement"
+      },
+      "time_s": 5.05,
+      "truth": {
+        "hostile_id": "H000",
+        "interceptor_id": "I001",
+        "outcome": false,
+        "shared_failure_factor": 0.74075657,
+        "success_probability": 0.59260526
+      }
+    },
+    {
+      "agent_local": {
+        "coverage_probability": 0.0
+      },
+      "kind": "coverage_expired",
+      "presentation": {
+        "frame": 18,
+        "label": "coverage expired"
+      },
+      "time_s": 9.35,
+      "truth": {
+        "hostile_id": "H000"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "trigger": "locally_observed_coverage_expiry"
+      },
+      "kind": "mobilized",
+      "presentation": {
+        "frame": 19,
+        "label": "reserve mobilization"
+      },
+      "time_s": 9.35,
+      "truth": {
+        "interceptor_id": "I002",
+        "phase": "reserve"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "claim_delay_s": 0.0,
+        "local_track_id": "I002-68c75e73",
+        "priority_rank": 0,
+        "trigger": "locally_observed_coverage_expiry"
+      },
+      "kind": "observer_claim",
+      "presentation": {
+        "frame": 20,
+        "label": "observation-driven recovery"
+      },
+      "time_s": 9.35,
+      "truth": {
+        "hostile_id": "H000"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I002-68c75e73",
+        "navigation_position": [
+          29.998889372404665,
+          60.049863907694814,
+          289.9936725126952
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          -0.02221255150171378,
+          0.9972781715194937,
+          -0.07030541349369032
+        ],
+        "safe_velocity": [
+          -0.022212551906704903,
+          0.9972781538963318,
+          -0.07030541449785233
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 21,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 9.35,
+      "truth": {
+        "from_position": [
+          30.0,
+          60.0,
+          290.0
+        ],
+        "interceptor_id": "I002",
+        "nearest_friendly_separation_m": 77.71902841192963,
+        "to_position": [
+          29.997779,
+          60.099728,
+          289.992969
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I002-68c75e73",
+        "navigation_position": [
+          29.99555748961866,
+          60.19945563077926,
+          289.9797520406246
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          -0.044425103380991926,
+          1.9945563254218797,
+          -0.14061082791433022
+        ],
+        "safe_velocity": [
+          -0.044425103813409805,
+          1.9945563077926636,
+          -0.14061082899570465
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 22,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 9.45,
+      "truth": {
+        "from_position": [
+          29.997779,
+          60.099728,
+          289.992969
+        ],
+        "interceptor_id": "I002",
+        "nearest_friendly_separation_m": 77.86632060475445,
+        "to_position": [
+          29.993336,
+          60.299183,
+          289.978908
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "guidance_mode": "midcourse_basket",
+        "identity_state": "HOSTILE EVIDENCE",
+        "iff_evaluated": true,
+        "local_track_id": "I002-68c75e73",
+        "navigation_position": [
+          29.99000435154885,
+          60.448775166273116,
+          289.95868853911156
+        ],
+        "navigation_updated": true,
+        "preferred_velocity": [
+          -0.06663765525824802,
+          2.9918344793247122,
+          -0.21091624232927758
+        ],
+        "safe_velocity": [
+          -0.06663765758275986,
+          2.9918344020843506,
+          -0.21091623604297638
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "trajectory_step",
+      "presentation": {
+        "frame": 23,
+        "label": "actuated safe trajectory"
+      },
+      "time_s": 9.549999999999999,
+      "truth": {
+        "from_position": [
+          29.993336,
+          60.299183,
+          289.978908
+        ],
+        "interceptor_id": "I002",
+        "nearest_friendly_separation_m": 78.08686540375638,
+        "to_position": [
+          29.986672,
+          60.598367,
+          289.957817
+        ]
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "identity_state": "HOSTILE EVIDENCE",
+        "local_track_id": "I002-68c75e73",
+        "orca_plane_count": 2,
+        "preferred_velocity": [
+          -0.06663765525824802,
+          2.9918344793247122,
+          -0.21091624232927758
+        ],
+        "safe_velocity": [
+          -0.06663765758275986,
+          2.9918344020843506,
+          -0.21091623604297638
+        ],
+        "safety_filter": "snape/RVO2-3D",
+        "safety_override": false
+      },
+      "kind": "engagement_attempt",
+      "presentation": {
+        "frame": 24,
+        "label": "simulated engagement"
+      },
+      "time_s": 9.649999999999999,
+      "truth": {
+        "hostile_id": "H000",
+        "interceptor_id": "I002",
+        "outcome": true,
+        "shared_failure_factor": 0.74075657,
+        "success_probability": 0.59260526
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "track_status": "removed"
+      },
+      "kind": "neutralized",
+      "presentation": {
+        "frame": 25,
+        "label": "NEUTRALIZED"
+      },
+      "time_s": 9.749999999999998,
+      "truth": {
+        "hostile_id": "H000",
+        "interceptor_id": "I002"
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I000",
+        "in_home_cell": false
+      },
+      "kind": "coverage_status",
+      "presentation": {
+        "frame": 26,
+        "label": "final coverage state"
+      },
+      "time_s": 9.849999999999998,
+      "truth": {
+        "interceptor_id": "I000",
+        "retained": false
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I001",
+        "in_home_cell": false
+      },
+      "kind": "coverage_status",
+      "presentation": {
+        "frame": 27,
+        "label": "final coverage state"
+      },
+      "time_s": 9.849999999999998,
+      "truth": {
+        "interceptor_id": "I001",
+        "retained": false
+      }
+    },
+    {
+      "agent_local": {
+        "agent_id": "I002",
+        "in_home_cell": false
+      },
+      "kind": "coverage_status",
+      "presentation": {
+        "frame": 28,
+        "label": "final coverage state"
+      },
+      "time_s": 9.849999999999998,
+      "truth": {
+        "interceptor_id": "I002",
+        "retained": false
+      }
+    },
+    {
+      "agent_local": {},
+      "kind": "simulation_completed",
+      "presentation": {
+        "frame": 29,
+        "label": "simulation completed"
+      },
+      "time_s": 9.849999999999998,
+      "truth": {
+        "expected_hostiles": 1,
+        "processed_hostiles": 1
+      }
+    }
+  ],
+  "evidence_class": "simulation_evidence",
+  "metrics": {
+    "completed": true,
+    "cumulative_neutralization": 1.0,
+    "duplicate_pursuits": 0,
+    "entity_drops": 0,
+    "friendly_collisions": 0,
+    "hostiles_total": 1,
+    "leaked": 0,
+    "minimum_separation_m": 59.97445472427608,
+    "neutralized": 1,
+    "recovery_count": 2,
+    "retained_coverage": 0.0,
+    "rf_ground_messages": 0,
+    "rf_interdrone_messages": 0,
+    "safety_filter": "snape/RVO2-3D",
+    "target_assignment_messages": 0
+  },
+  "schema_version": "1.0",
+  "teacher_backend": null
+}

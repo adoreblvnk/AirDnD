@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "benchmark": {
+    "paired_seeds": 30,
+    "hostiles": 100,
+    "interceptors": 125,
+    "methods": [
+      "naive_static",
+      "independent_greedy",
+      "deterministic_ablation",
+      "airdnd",
+      "ortools_teacher"
+    ]
+  },
+  "evidence_class": "simulation_evidence",
+  "state_layers": ["simulator_truth", "agent_local", "presentation"],
+  "collision_filter": {
+    "implementation": "snape/RVO2-3D revision c726b3c537639ca2cf202c49bcae0f6b7889f344",
+    "official_rvo2_3d_binding": true
+  },
+  "statistical_claim_policy": "Acceptance claims are determined only after generated paired-seed confidence intervals are evaluated."
+}

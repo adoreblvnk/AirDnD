@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>AirDnD — 3-minute pitch</title>
+  <style>
+    :root{--sea:#081113;--panel:#0d191b;--ink:#eef4ef;--muted:#96a6a1;--line:#284044;--blue:#58b8ff;--cyan:#68e4e8;--red:#ff6b63;--amber:#f5bd62;--green:#75d59a;--scale:1}
+    *{box-sizing:border-box} html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#020607;color:var(--ink)}
+    body{font-family:"Avenir Next",Avenir,"Segoe UI",sans-serif}
+    button,input{font:inherit}.deck{position:fixed;inset:0;overflow:hidden}.canvas{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform:translate(-50%,-50%) scale(var(--scale));transform-origin:center;background:var(--sea);overflow:hidden;box-shadow:0 30px 80px #000}
+    .slide{position:absolute;inset:0;display:none;padding:92px 108px 82px;background:radial-gradient(circle at 78% 18%,#102225 0,transparent 36%),var(--sea)}
+    .slide.active{display:grid}.slide[data-layout="title"]{grid-template-rows:auto 1fr auto}.slide[data-layout="content"]{grid-template-rows:auto 1fr}.eyebrow,.mono{font-family:"SFMono-Regular",Consolas,monospace;letter-spacing:.08em;text-transform:uppercase}.eyebrow{font-size:21px;color:var(--cyan);margin:0 0 18px}.timing{position:absolute;right:108px;top:95px;color:var(--amber);font:700 22px "SFMono-Regular",monospace}.title{font-size:92px;line-height:.98;letter-spacing:-.055em;max-width:1400px;margin:0}.title em{font-style:normal;color:var(--cyan)}
+    h2{font-size:64px;line-height:1.05;letter-spacing:-.04em;margin:0 0 18px}h3{font-size:28px;margin:0 0 14px}p{font-size:28px;line-height:1.45;margin:0;color:var(--muted)}.lead{font-size:38px;max-width:1180px;color:var(--ink)}
+    .rule{height:1px;background:var(--line);margin:34px 0}.columns{display:grid;grid-template-columns:1.1fr .9fr;gap:72px;align-items:center}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}.stack{display:grid;gap:22px}.plot{position:relative;height:620px;border:1px solid var(--line);background:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:64px 64px;overflow:hidden}.plot:before{content:"MARINA BAY / SIMULATED REPLAY";position:absolute;top:22px;left:24px;color:var(--muted);font:16px "SFMono-Regular",monospace;letter-spacing:.1em}.zone{position:absolute;border:1px solid var(--red);background:#ff6b6313;color:var(--red);font:17px "SFMono-Regular",monospace;padding:12px;right:8%;top:27%;width:29%;height:42%}.track{position:absolute;width:14px;height:14px;border:3px solid;border-radius:50%}.track:after{content:"";position:absolute;width:120px;height:1px;background:currentColor;right:12px;top:4px;transform-origin:right}.friendly{color:var(--blue);border-color:var(--blue)}.hostile{color:var(--red);border-color:var(--red)}.observer{color:var(--cyan);border-color:var(--cyan);border-style:dashed}.basket{position:absolute;width:80px;height:80px;border:2px dashed var(--cyan);border-radius:50%}.status{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line)}.status div{padding:19px 22px;border-right:1px solid var(--line);font:18px "SFMono-Regular",monospace}.status div:last-child{border:0}.zero{color:var(--green)}
+    .card{border-top:1px solid var(--line);padding-top:22px}.card b{display:block;font:650 30px "Avenir Next",sans-serif;margin-bottom:10px}.card p{font-size:23px}.label{display:inline-block;color:var(--sea);background:var(--ink);font:800 17px "SFMono-Regular",monospace;padding:7px 10px;letter-spacing:.06em}.label.blue{background:var(--blue)}.label.red{background:var(--red)}.label.amber{background:var(--amber)}
+    .storyboard{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:18px;margin-top:20px}.beat{position:relative;border:1px solid var(--line);padding:26px;background:#091416}.beat .time{font:700 18px "SFMono-Regular",monospace;color:var(--amber)}.beat h3{margin:18px 0 9px;font-size:27px}.beat p{font-size:20px;line-height:1.35}.beat .cue{position:absolute;bottom:20px;left:26px;right:26px;color:var(--ink);font-size:17px}.decision{border:1px solid var(--line);padding:28px}.decision .row{display:grid;grid-template-columns:1.2fr repeat(4,.8fr);padding:16px 0;border-bottom:1px solid var(--line);font:21px "SFMono-Regular",monospace}.decision .row:first-child{color:var(--muted);font-size:16px}.decision .selected{color:var(--cyan)}.flow{display:flex;align-items:stretch;gap:18px}.flow .node{flex:1;border:1px solid var(--line);padding:30px;min-height:210px}.flow .arrow{display:grid;place-items:center;color:var(--cyan);font-size:42px}.node .n{font:18px "SFMono-Regular",monospace;color:var(--amber)}.node h3{font-size:30px;margin-top:22px}.node p{font-size:21px}.roadmap{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--line);border:1px solid var(--line)}.roadmap>div{background:var(--panel);padding:36px}.roadmap .month{color:var(--cyan);font:19px "SFMono-Regular",monospace}.roadmap p{font-size:22px}.proof{border:1px solid var(--line);padding:30px;background:#091416}.proof.good{border-color:#345d45}.proof.warn{border-color:#755d2f}.proof h3{display:flex;justify-content:space-between}.proof .state{font:16px "SFMono-Regular",monospace;color:var(--amber)}.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.metric{border-top:1px solid var(--line);padding:16px 0}.metric .value{font:700 29px "SFMono-Regular",monospace;color:var(--ink)}.metric .name{font-size:17px;color:var(--muted)}
+    .speaker{position:absolute;left:108px;right:108px;bottom:80px;border-top:1px solid var(--line);padding-top:18px;display:flex;gap:24px;align-items:flex-start}.speaker .tag{font:16px "SFMono-Regular",monospace;color:var(--amber);min-width:132px}.speaker p{color:var(--ink);font-size:22px;line-height:1.35}.speaker.hidden{display:none}.footer{position:absolute;left:0;right:0;bottom:0;height:48px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 34px;background:#071012;color:var(--muted);font:15px "SFMono-Regular",monospace}.progress{position:absolute;left:0;bottom:47px;height:2px;background:var(--cyan);transition:width .2s}.nav{position:fixed;right:20px;bottom:18px;display:flex;gap:8px;z-index:5}.nav button,.evidence-control{border:1px solid #395057;background:#081113;color:var(--ink);padding:10px 14px;min-width:44px;min-height:44px;cursor:pointer}.nav button:focus-visible,.evidence-control:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}.cost{font-size:76px;letter-spacing:-.05em;color:var(--ink)}.cost small{font-size:26px;color:var(--muted);letter-spacing:0}.caveat{font-size:21px;color:var(--amber);max-width:780px}.source{font:15px "SFMono-Regular",monospace;color:var(--muted);margin-top:15px}.hardware{border-left:3px solid var(--amber);padding-left:24px}.no-print{display:block}
+    @media print{html,body{overflow:visible;background:white}.deck{position:static;display:block}.canvas{width:auto;height:auto;transform:none;box-shadow:none}.slide{position:relative;display:grid!important;width:1920px;height:1080px;page-break-after:always}.nav,.no-print{display:none}.speaker.hidden{display:flex}}
+    @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+<main class="deck" aria-label="AirDnD 3-minute presentation"><div class="canvas" id="canvas">
+  <section class="slide active" data-layout="content" data-id="hook" aria-labelledby="s1">
+    <header><p class="eyebrow">AirDnD / 30-second hook storyboard</p><h2 id="s1">When the radios disappear, <em style="color:var(--cyan);font-style:normal">motion becomes the message.</em></h2><span class="timing">0:00—0:30</span></header>
+    <div class="storyboard" aria-label="Six five-second hook beats">
+      <article class="beat"><span class="time">0:00—0:05</span><h3>Reveal the raid</h3><p>Marina Bay protected volume. Hostiles enter the corridor.</p><div class="cue">VO: “A swarm normally shares one assignment table.”</div></article>
+      <article class="beat"><span class="time">0:05—0:10</span><h3>Cut every RF link</h3><p>Three RF counters fall to zero; NIR identity remains separate.</p><div class="cue">VO: “Here, every RF link is gone.”</div></article>
+      <article class="beat"><span class="time">0:10—0:15</span><h3>Expose the failure</h3><p>Naive units duplicate pursuit while a flank stays uncovered.</p><div class="cue">VO: “Independent drones pile onto one threat.”</div></article>
+      <article class="beat"><span class="time">0:15—0:20</span><h3>Infer intent locally</h3><p>AirDnD reads headings; one Lead moves, another holds.</p><div class="cue">VO: “AirDnD infers intent from physical motion.”</div></article>
+      <article class="beat"><span class="time">0:20—0:25</span><h3>Recover from a miss</h3><p>Coverage expires; an eligible Observer independently commits.</p><div class="cue">VO: “A miss triggers recovery—not a handoff.”</div></article>
+      <article class="beat"><span class="time">0:25—0:30</span><h3>Freeze on proof</h3><p>Evidence scoreboard appears only if final evidence is loaded.</p><div class="cue">VO: “Now inspect the mechanism and its evidence.”</div></article>
+    </div>
+  </section>
+
+  <section class="slide" data-layout="content" data-id="blackout" aria-labelledby="s2">
+    <header><p class="eyebrow">Mechanism / overview → sector</p><h2 id="s2">Coordination without a shared truth</h2><span class="timing">0:30—0:55</span></header>
+    <div class="columns">
+      <div class="plot" aria-label="Stylized simulated tactical plot"><div class="zone">PROTECTED VOLUME</div><i class="track hostile" style="left:12%;top:25%"></i><i class="track hostile" style="left:21%;top:58%"></i><i class="track hostile" style="left:29%;top:77%"></i><i class="track friendly" style="left:51%;top:24%"></i><i class="track friendly" style="left:54%;top:53%"></i><i class="track observer" style="left:48%;top:74%"></i><i class="basket" style="left:38%;top:41%"></i></div>
+      <div class="stack"><p class="lead">Each interceptor sees noisy local tracks, observes friendly trajectories, and applies the same preloaded doctrine.</p><div class="status"><div>RF GROUND<br><b class="zero">0</b></div><div>RF DRONE<br><b class="zero">0</b></div><div>ASSIGNMENTS<br><b class="zero">0</b></div><div>NIR ID<br><b style="color:var(--blue)">ACTIVE</b></div></div><p class="caveat">The one-way NIR beacon authenticates identity only. It carries no tracks, assignment, or intent.</p></div>
+    </div>
+    <div class="speaker"><span class="tag">SPOKEN / 25s</span><p>“AirDnD coordinates without a shared truth. Toggle from the whole battlespace into one sector: every interceptor sees a different noisy local picture. Ground links, inter-drone RF, and assignment messages remain at zero. The NIR beacon is shown separately because it confirms identity only—it never carries coordination data.”</p></div>
+  </section>
+
+  <section class="slide" data-layout="content" data-id="perspectives" aria-labelledby="s3">
+    <header><p class="eyebrow">Local perspectives / no simulator truth leakage</p><h2 id="s3">One hostile. Three local realities.</h2><span class="timing">0:55—1:25</span></header>
+    <div class="three">
+      <article class="card"><span class="label red">HOSTILE VIEW</span><b>Route + visible defenders</b><p>Shows the protected-zone objective and only locally visible tracks.</p></article>
+      <article class="card"><span class="label blue">INTERCEPTOR VIEW</span><b>Noisy local tracks</b><p>Shows the predicted intercept basket, preferred path, and selected local target.</p></article>
+      <article class="card"><span class="label">OBSERVER VIEW</span><b>Temporary role</b><p>Shows Lead, surviving hostile, private coverage window, and claim delay—not a separate airframe.</p></article>
+    </div>
+    <div class="rule"></div><p class="lead">Ground truth is hidden in local views and appears only under an explicit evaluator overlay.</p>
+    <div class="speaker"><span class="tag">SPOKEN / 30s</span><p>“Switch perspectives. The hostile sees its route. The Lead sees only its own noisy tracks and intercept basket. A normal interceptor temporarily in Observer role can see both Lead and threat. Observer is not a special aircraft. Notice that local track IDs diverge, and simulator ground truth stays masked unless I explicitly enable the evaluator overlay.”</p></div>
+  </section>
+
+  <section class="slide" data-layout="content" data-id="decision" aria-labelledby="s4">
+    <header><p class="eyebrow">Inspect / learned beliefs → deterministic utility</p><h2 id="s4">The choice is inspectable.</h2><span class="timing">1:25—1:50</span></header>
+    <div class="decision" role="table" aria-label="Decision panel field schema">
+      <div class="row" role="row"><span>LOCAL CANDIDATE</span><span>P(LEAK)</span><span>P(SUCCESS)</span><span>P(COVERED)</span><span>ACTION</span></div>
+      <div class="row selected" role="row"><span>Locally selected track</span><span>loaded replay</span><span>loaded replay</span><span>loaded replay</span><span>INTERCEPT</span></div>
+      <div class="row" role="row"><span>Observed covered track</span><span>loaded replay</span><span>loaded replay</span><span>loaded replay</span><span>HOLD</span></div>
+    </div>
+    <div class="three"><article class="card"><b>Belief model</b><p>Calibrated local probabilities and an intercept basket.</p></article><article class="card"><b>Mission utility</b><p>Expected consequence minus expenditure, battery, coverage, and collision costs.</p></article><article class="card"><b>Safety filter</b><p>RVO2-3D overrides preferred velocity; minimum separation must be verified empirically.</p></article></div>
+    <div class="speaker"><span class="tag">SPOKEN / 25s</span><p>“Open the decision trace. A compact model estimates leak, success, and friendly coverage from local history. Those beliefs feed deterministic mission utility, tie-breaking, and progress-aware hysteresis. The preferred velocity then passes through RVO2-3D. We inspect every term; we do not ask a black box to choose doctrine.”</p></div>
+  </section>
+
+  <section class="slide" data-layout="content" data-id="recovery" aria-labelledby="s5">
+    <header><p class="eyebrow">Fixed-seed replays / success + miss branch</p><h2 id="s5">A miss produces observation-driven recovery.</h2><span class="timing">1:50—2:20</span></header>
+    <div class="flow">
+      <article class="node"><span class="n">01 / LEAD</span><h3>Intercept basket</h3><p>One Lead commits while eligible Observers preserve options.</p></article><div class="arrow">→</div>
+      <article class="node"><span class="n">02 / MISS</span><h3>Window expires</h3><p>The hostile survives; no assignment or handoff message is sent.</p></article><div class="arrow">→</div>
+      <article class="node"><span class="n">03 / OBSERVE</span><h3>Threat uncovered</h3><p>Eligible Observers locally rescore and apply staggered claim delays.</p></article><div class="arrow">→</div>
+      <article class="node"><span class="n">04 / RECOVER</span><h3>Next attempt</h3><p>The strongest locally perceived claimant moves first.</p></article>
+    </div>
+    <p class="caveat" style="margin-top:26px">Sequential reliability must come from correlated multi-seed rollouts with 95% confidence intervals—not the independence formula.</p>
+    <div class="speaker"><span class="tag">SPOKEN / 30s</span><p>“Switch between fixed-seed hit and miss replays. On a hit, the event is marked NEUTRALIZED. On a miss, the hostile survives the predicted basket and the private coverage window expires. Eligible Observers rescore locally, use staggered claim delays, and one re-engages. There is no handoff packet, and reliability claims must come from correlated multi-seed evidence.”</p></div>
+  </section>
+
+  <section class="slide" data-layout="content" data-id="lifecycle" aria-labelledby="s6">
+    <header><p class="eyebrow">Full lifecycle / venture roadmap</p><h2 id="s6">From coastal launch to hardware validation</h2><span class="timing">2:20—2:40</span></header>
+    <div class="roadmap">
+      <div><span class="month">MONTHS 1—3</span><h3>Avionics testbed</h3><p>5-node benchtop HITL; physical companion compute, sensor bus emulation, and controller interfaces.</p></div>
+      <div><span class="month">MONTHS 4—6</span><h3>Controlled flight trials</h3><p>Multi-drone trials under controlled GNSS denial and radio blackout.</p></div>
+      <div><span class="month">MONTHS 7—9</span><h3>Red-team integration</h3><p>Interdiction trials and Layer 01/02/03 interface integration with stakeholders.</p></div>
+    </div>
+    <div class="hardware"><p><b style="color:var(--ink)">Simulation evidence is not hardware validation.</b> HITL, flight safety, sensor behavior, actuation, and field performance remain future validation until physical test artifacts are loaded.</p></div>
+    <div class="speaker"><span class="tag">SPOKEN / 20s</span><p>“The replay covers coastal launch, vertical-grid positioning, engagement, and dead-reckoning return. The roadmap is deliberately separate: first a five-node hardware-in-the-loop testbed, then controlled flight trials, then red-team integration. Today’s simulator can support software evidence; it does not validate airframes, sensors, actuation, or field safety.”</p></div>
+  </section>
+
+  <section class="slide" data-layout="content" data-id="evidence" aria-labelledby="s7">
+    <header><p class="eyebrow">Evidence page / runtime-loaded only</p><h2 id="s7">Claims unlock only when evidence exists.</h2><span class="timing">2:40—2:55</span></header>
+    <div class="columns">
+      <article class="proof warn" id="evidencePanel"><h3>Final benchmark evidence <span class="state" id="evidenceState">CHECKING…</span></h3><p id="evidenceMessage">Loading declared evidence artifact.</p><div class="metric-grid" id="metrics" hidden></div><p class="source" id="evidenceSource"></p></article>
+      <div class="stack"><div class="card"><b>Statistical ACs</b><p>Remain “not proven” unless loaded final evidence identifies ≥30 paired seeds, confidence intervals, frozen thresholds, and favorable paired deltas where required.</p></div><div class="card"><b>AC-019</b><p>Host benchmark only: &lt;15 MB model, &lt;2 ms inference, and ≥10 Hz on the recorded host. It is not physical airborne validation.</p></div><div class="card"><b>AC-026</b><p>Requires an actual recorded Apple MacBook Air M3 / 24 GB system profile. A label or assumed machine does not pass it.</p></div><label class="no-print"><input class="evidence-control" id="evidenceFile" type="file" accept="application/json"> Load final evidence JSON</label></div>
+    </div>
+    <div class="speaker"><span class="tag">SPOKEN / 15s</span><p>“The proof page binds every statistic to seed, configuration, Git revision, and raw artifacts. If final evidence is absent, this deck says so. Statistical acceptance stays unproven without paired confidence intervals. Host compute is not hardware validation, and the M3 criterion requires an actual 24-gigabyte system profile.”</p></div>
+  </section>
+
+  <section class="slide" data-layout="title" data-id="close" aria-labelledby="s8">
+    <header><p class="eyebrow">AirDnD / close</p><span class="timing">2:55—3:00</span></header>
+    <div style="align-self:center"><h1 class="title" id="s8">A self-healing wall.<br><em>Zero RF coordination.</em></h1><div class="rule"></div><div class="columns"><div><div class="cost">1,500:1 <small>simplified munition-cost ratio</small></div><p class="source">$1.5M comparison round ÷ $1,000 target interceptor unit cost.</p></div><p class="caveat">Munition-only comparison. Excludes sensors, launch systems, docks, support equipment, development, and operating costs.</p></div></div>
+    <div class="speaker"><span class="tag">SPOKEN / 5s</span><p>“AirDnD turns attritable interceptors into a self-healing defensive wall—without RF coordination.”</p></div>
+  </section>
+
+  <div class="progress" id="progress"></div><footer class="footer"><span>AIRDND / 3:00 EXACT RUN OF SHOW</span><span id="count">01 / 08</span><span>← → navigate · N notes · F fullscreen</span></footer>
+</div></main>
+<nav class="nav no-print" aria-label="Slide navigation"><button id="prev" aria-label="Previous slide">←</button><button id="notes" aria-label="Toggle spoken cues">N</button><button id="next" aria-label="Next slide">→</button></nav>
+<script>
+(()=>{
+  const slides=[...document.querySelectorAll('.slide')], canvas=document.getElementById('canvas');
+  let index=Math.max(0,Math.min(slides.length-1,Number(localStorage.getItem('airdnd-slide')||0)));
+  let notesVisible=true;
+  function scale(){document.documentElement.style.setProperty('--scale',Math.min(innerWidth/1920,innerHeight/1080));}
+  function show(i){index=(i+slides.length)%slides.length;slides.forEach((s,n)=>s.classList.toggle('active',n===index));document.getElementById('count').textContent=String(index+1).padStart(2,'0')+' / '+String(slides.length).padStart(2,'0');document.getElementById('progress').style.width=((index+1)/slides.length*100)+'%';localStorage.setItem('airdnd-slide',index);location.hash=slides[index].dataset.id;}
+  function toggleNotes(){notesVisible=!notesVisible;document.querySelectorAll('.speaker').forEach(x=>x.classList.toggle('hidden',!notesVisible));}
+  document.getElementById('prev').onclick=()=>show(index-1);document.getElementById('next').onclick=()=>show(index+1);document.getElementById('notes').onclick=toggleNotes;
+  addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();show(index+1)}if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();show(index-1)}if(e.key.toLowerCase()==='n')toggleNotes();if(e.key.toLowerCase()==='f')document.documentElement.requestFullscreen?.()});
+  addEventListener('resize',scale);scale();const hash=location.hash.slice(1),at=slides.findIndex(s=>s.dataset.id===hash);show(at>=0?at:index);
+
+  const panel=document.getElementById('evidencePanel'), state=document.getElementById('evidenceState'), message=document.getElementById('evidenceMessage'), metrics=document.getElementById('metrics'), source=document.getElementById('evidenceSource');
+  const paths=new URLSearchParams(location.search).get('evidence')?[new URLSearchParams(location.search).get('evidence')]:['./evidence/final-report.json','../evidence/final-report.json'];
+  const pick=(obj,keys)=>{for(const k of keys){const v=k.split('.').reduce((a,p)=>a&&a[p],obj);if(v!==undefined&&v!==null)return v}return null};
+  function fail(detail='No final evidence JSON was found.') {panel.classList.remove('good');panel.classList.add('warn');state.textContent='GENERATE EVIDENCE FIRST';message.textContent=detail+' No benchmark or statistical acceptance claim is displayed.';metrics.hidden=true;source.textContent='Expected ./evidence/final-report.json, ../evidence/final-report.json, ?evidence=URL, or use the file picker.';}
+  function render(data,label){
+    const finalFlag=pick(data,['final','is_final','metadata.final']); const seeds=Number(pick(data,['paired_seeds','summary.paired_seeds','metadata.paired_seeds'])); const git=pick(data,['git_revision','metadata.git_revision']); const cfg=pick(data,['configuration_hash','metadata.configuration_hash','configuration']);
+    const ac19=pick(data,['acceptance.AC-019.passed','acceptance.AC_019.passed']); const ac26=pick(data,['acceptance.AC-026.passed','acceptance.AC_026.passed']); const hostModel=String(pick(data,['host.model','system_profile.model'])||''); const hostMemory=Number(pick(data,['host.memory_gb','system_profile.memory_gb'])); const profileArtifact=pick(data,['host.system_profile_artifact','system_profile.artifact']);
+    const statProof=finalFlag===true && seeds>=30 && !!git && !!cfg; const hostProof=ac26===true && /M3/i.test(hostModel) && hostMemory===24 && !!profileArtifact;
+    if(!statProof){fail('Evidence loaded, but it is not a qualifying final statistical report (requires final=true, ≥30 paired seeds, Git revision, and configuration).');source.textContent='Loaded: '+label;return}
+    panel.classList.remove('warn');panel.classList.add('good');state.textContent='FINAL EVIDENCE LOADED';message.textContent='Qualifying final report metadata loaded. Individual AC results below are shown only as declared by that artifact.';
+    const values=[['Paired seeds',String(seeds)],['Git revision',String(git).slice(0,12)],['AC-019 host benchmark',ac19===true?'PASS':ac19===false?'FAIL':'NOT REPORTED'],['AC-026 M3 / 24 GB',hostProof?'PASS':ac26===false?'FAIL':'NOT PROVEN'],['Configuration',typeof cfg==='string'?cfg.slice(0,18):'RECORDED'],['Hardware validation','NOT IMPLIED']];
+    metrics.innerHTML=values.map(([n,v])=>`<div class="metric"><div class="value">${String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</div><div class="name">${n}</div></div>`).join('');metrics.hidden=false;source.textContent='Loaded: '+label;
+  }
+  async function loadPaths(){for(const p of paths){try{const r=await fetch(p,{cache:'no-store'});if(r.ok){render(await r.json(),p);return}}catch{}}fail(location.protocol==='file:'?'Browser file access blocks automatic JSON loading from file://. Serve this directory over HTTP or use the file picker.':'No qualifying final evidence JSON was found.');}
+  document.getElementById('evidenceFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{render(JSON.parse(await f.text()),f.name)}catch{fail('The selected file is not valid JSON.')}});loadPaths();
+})();
+</script>
+</body></html>

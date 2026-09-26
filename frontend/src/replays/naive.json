@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "scenario_id": "naive",
+  "evidence_class": "simulation_evidence",
+  "provenance": {
+    "source_artifact": "evidence/raw/benchmark.jsonl",
+    "source_line": 2,
+    "method": "independent_greedy",
+    "seed": 0,
+    "derivation": "Presentation subset of the checked-in immutable benchmark replay; duplicate_pursuits=37."
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "time_s": 0,
+      "overview": { "hostile_id": "H000", "position": [0, 1402.514604, 180.188058] },
+      "event": { "event": "GRID SET", "description": "Independent local tracks acquired" },
+      "localViews": {
+        "I003": { "agent_id": "I003", "local_track_id": "I003-e32a1fe9", "noisy_position": [1.17378, 1402.696198, 181.516102] }
+      }
+    },
+    {
+      "frame": 1,
+      "time_s": 0,
+      "overview": { "hostile_id": "H000" },
+      "event": { "event": "DUPLICATE PURSUIT", "description": "Independent-greedy benchmark recorded 37 duplicate pursuits" },
+      "localViews": {}
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "artifact": "reports/system_profile.json",
+  "machine_model": "Mac15,13",
+  "memory_gb": 24,
+  "model": "MacBook Air Apple M3",
+  "privacy": "Serial number, platform UUID, and device identifiers intentionally omitted",
+  "processor_layout": "proc 8:4:4:0"
+}

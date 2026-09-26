@@ -610,7 +610,7 @@ Omniscient OR-Tools Teacher    Paired Counterfactual Rollouts   Evaluation Groun
 ### Implementation Standards & Architectural Guidance
 - **Resium & CesiumJS Lifecycle**: Avoid recreating Cesium providers, camera controllers, or scene objects on React render cycles. Use the Resium shell for declarative root mount, but stream entity coordinate updates directly via `SampledPositionProperty` to maintain steady 60 FPS rendering.
 - **FastAPI Telemetry Stream**: The WebSocket connects the simulation backend to the frontend display only. It represents a ground-station monitoring tap and does **not** represent inter-drone RF communication.
-- **Offline Cesium Fallback**: The demo incorporates an offline fallback mode utilizing a local Cesium ellipsoid and pre-cached local scenario geometry. The interactive demonstration does not depend on external hosted tile servers or cloud connectivity to function.
+- **Hosted Cesium Requirement**: The worldview requires Google Photorealistic 3D Tiles through Cesium ion and uses the Google geocoder required by the dataset terms. Missing credentials or a failed tile load blocks the map explicitly; the application does not substitute an ellipsoid or procedural basemap.
 
 ---
 
@@ -618,9 +618,8 @@ Omniscient OR-Tools Teacher    Paired Counterfactual Rollouts   Evaluation Groun
 
 | Interface / Service | Status | Operational Role in AirDnD |
 |---|---|---|
-| **Cesium ion** | Active (`CESIUM_ION_TOKEN`) | Hosted 3D terrain and Singapore OSM architectural context |
+| **Cesium ion + Google Photorealistic 3D Tiles** | Required (`VITE_CESIUM_ION_TOKEN`) | Hosted photorealistic Singapore 3D tiles and Google geocoder |
 | **FastAPI WebSocket** | Internal (`localhost:8000`) | Real-time simulator state, belief vectors, and metrics stream |
-| **Offline Local Fallback** | Keyless Built-in | Standalone ellipsoid and procedural 3D grid when offline |
 ---
 
 ## 9. The Product: Interactive AirDnD Worldview
