@@ -222,6 +222,7 @@ def generate_evidence(output_dir: Path, seeds: Iterable[int] = range(30), hostil
     _write_json(output_dir / "reports/scaling.json", {"evidence_class": "simulation_evidence", "results": scaling})
     _write_json(output_dir / "replays/success.json", run_fixed_replay("success").to_dict())
     _write_json(output_dir / "replays/miss_recovery.json", run_fixed_replay("miss_recovery").to_dict())
+    _write_json(output_dir / "replays/naive.json", run_fixed_replay("naive").to_dict())
     model, training = train_belief_model()
     models = output_dir / "models"
     models.mkdir(parents=True, exist_ok=True)

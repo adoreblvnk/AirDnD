@@ -18,7 +18,7 @@ import torch
 from .model import export_onnx_int8, train_belief_model
 
 _SCENARIO_ID = re.compile(r"^[A-Za-z0-9_-]+$")
-_FIXED_REPLAY_IDS = frozenset({"success", "miss_recovery", "miss-recovery"})
+_FIXED_REPLAY_IDS = frozenset({"success", "miss_recovery", "miss-recovery", "naive"})
 _LOCAL_FORBIDDEN_KEYS = frozenset(
     {
         "physical_id",

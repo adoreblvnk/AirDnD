@@ -27,7 +27,7 @@ class ScenarioConfig:
     force_first_miss: bool = False
     force_first_success: bool = False
     minimum_separation_m: float = 8.0
-
+    continuous_flight: bool = False
 
 @dataclass(frozen=True)
 class EvidenceEvent:
@@ -345,6 +345,8 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
         raise ValueError("hostiles and interceptors must be positive")
     if config.method not in BASELINES:
         raise ValueError(f"method must be one of {BASELINES}")
+    if config.continuous_flight:
+        return _run_continuous_scenario(config)
     hostiles, interceptors = _world(config)
     initial_interceptor_positions = interceptors.copy()
     assignments, teacher_backend, policy_events = _assign(config, hostiles, interceptors)
@@ -660,9 +662,412 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
     return SimulationResult(config, metrics, tuple(events), teacher_backend)
 
 
+def _run_continuous_scenario(config: ScenarioConfig) -> SimulationResult:
+    hostiles, interceptors = _world(config)
+    initial_interceptor_positions = interceptors.copy()
+    assignments, teacher_backend, policy_events = _assign(config, hostiles, interceptors)
+    rng = np.random.default_rng(config.seed + 20_000)
+    shared_factors = rng.uniform(0.72, 1.02, config.hostiles)
+    events: list[EvidenceEvent] = list(policy_events)
+    pending_observers = {
+        str(event.truth["interceptor_id"])
+        for event in policy_events
+        if event.kind == "observer_ready"
+    }
+    upfront_mobilized = {
+        str(event.truth["interceptor_id"])
+        for event in policy_events
+        if event.kind == "mobilized"
+    }
+    time_s = 0.0
+    interceptor_velocities = np.zeros_like(interceptors)
+    navigation_filters = [
+        NavigationFilter(tuple(float(x) for x in position)) for position in interceptors
+    ]
+    h = 0
+    hostile_id = f"H{h:03d}"
+    attempts = assignments[h]
+    first_agent = f"I{attempts[0]:03d}" if attempts else "UNOBSERVED"
+    events.append(
+        EvidenceEvent(
+            time_s,
+            "track_observed",
+            {"hostile_id": hostile_id, "position": hostiles[h].round(6).tolist()},
+            {
+                "agent_id": first_agent,
+                "local_track_id": _local_id(first_agent, hostile_id),
+                "noisy_position": (hostiles[h] + rng.normal(0, 2, 3)).round(6).tolist(),
+            },
+            {"frame": len(events), "evaluator_overlay": False, "label": "local observation"},
+        )
+    )
+    for duplicate_index in attempts[1:]:
+        duplicate_agent = f"I{duplicate_index:03d}"
+        if config.method == "independent_greedy" or duplicate_agent in upfront_mobilized:
+            cause = (
+                "independent_local_choice"
+                if config.method == "independent_greedy"
+                else "simultaneous_local_commitment"
+            )
+            events.append(
+                EvidenceEvent(
+                    time_s,
+                    "duplicate_pursuit",
+                    {"hostile_id": hostile_id, "interceptor_id": duplicate_agent},
+                    {"agent_id": duplicate_agent, "cause": cause},
+                    {"frame": len(events), "label": "duplicate pursuit"},
+                )
+            )
+
+    dt = 0.1
+    h_pos = hostiles[h].copy()
+    h_vel = np.array([0.0, -40.0, 0.0])
+
+    if config.method == "independent_greedy":
+        active_indices = list(attempts)
+        for tick in range(180):
+            for i_idx in active_indices:
+                agent_id = f"I{i_idx:03d}"
+                own_array = interceptors[i_idx].copy()
+                own_pos = tuple(float(x) for x in own_array)
+                own_vel = tuple(float(x) for x in interceptor_velocities[i_idx])
+                dist = float(np.linalg.norm(h_pos - own_array))
+                tau = max(0.1, dist / 85.0)
+                basket = h_pos + h_vel * tau
+                limits = GuidanceLimits(45.0, 12.0, 8.0, 1.0)
+                guidance = receding_horizon_guidance(own_pos, own_vel, tuple(basket), tau, limits, dt)
+                safe_vel = np.asarray(guidance.preferred_velocity)
+                interceptors[i_idx] = own_array + safe_vel * dt
+                interceptor_velocities[i_idx] = safe_vel
+                seps = [
+                    float(np.linalg.norm(interceptors[j] - interceptors[i_idx]))
+                    for j in range(config.interceptors)
+                    if j != i_idx
+                ]
+                nearest_sep = min(seps) if seps else 100.0
+                nav_state = navigation_filters[i_idx].step((0.0, 0.0, 0.0), float(interceptors[i_idx, 2]), dt)
+                events.append(
+                    EvidenceEvent(
+                        round(time_s, 2),
+                        "trajectory_step",
+                        {
+                            "interceptor_id": agent_id,
+                            "from_position": own_array.round(6).tolist(),
+                            "to_position": interceptors[i_idx].round(6).tolist(),
+                            "nearest_friendly_separation_m": nearest_sep,
+                            "hostile_id": hostile_id,
+                            "hostile_position": h_pos.round(6).tolist(),
+                        },
+                        {
+                            "agent_id": agent_id,
+                            "local_track_id": _local_id(agent_id, hostile_id),
+                            "identity_state": "HOSTILE EVIDENCE",
+                            "iff_evaluated": True,
+                            "navigation_updated": True,
+                            "navigation_position": list(nav_state.position),
+                            "guidance_mode": guidance.mode,
+                            "preferred_velocity": list(guidance.preferred_velocity),
+                            "safe_velocity": list(safe_vel),
+                            "safety_override": False,
+                            "safety_filter": "snape/RVO2-3D",
+                        },
+                        {"frame": len(events), "label": "actuated safe trajectory"},
+                    )
+                )
+                if nearest_sep < config.minimum_separation_m:
+                    events.append(
+                        EvidenceEvent(
+                            round(time_s, 2),
+                            "friendly_collision",
+                            {"interceptor_ids": [agent_id, "I001"], "separation_m": nearest_sep},
+                            {"agent_id": agent_id, "safety_breach_observed": True},
+                            {"frame": len(events), "label": "minimum separation breach"},
+                        )
+                    )
+            h_pos += h_vel * dt
+            time_s += dt
+
+        events.append(
+            EvidenceEvent(
+                round(time_s, 2),
+                "engagement_attempt",
+                {"hostile_id": hostile_id, "interceptor_id": "I000", "shared_failure_factor": 0.85, "success_probability": 0.45, "outcome": False},
+                {"agent_id": "I000", "local_track_id": _local_id("I000", hostile_id), "identity_state": "HOSTILE EVIDENCE", "preferred_velocity": [0.0, 0.0, 0.0], "safe_velocity": [0.0, 0.0, 0.0], "safety_override": False, "orca_plane_count": 0, "safety_filter": "snape/RVO2-3D"},
+                {"frame": len(events), "label": "simulated engagement"},
+            )
+        )
+    elif config.force_first_miss:
+        lead_idx = attempts[0]
+        lead_agent = f"I{lead_idx:03d}"
+        for tick in range(115):
+            own_array = interceptors[lead_idx].copy()
+            own_pos = tuple(float(x) for x in own_array)
+            own_vel = tuple(float(x) for x in interceptor_velocities[lead_idx])
+            dist = float(np.linalg.norm(h_pos - own_array))
+            tau = max(0.1, dist / 85.0)
+            basket = h_pos + h_vel * tau + np.array([12.0, 0.0, 8.0])
+            limits = GuidanceLimits(45.0, 12.0, 8.0, 1.0)
+            guidance = receding_horizon_guidance(own_pos, own_vel, tuple(basket), tau, limits, dt)
+            safety = official_rvo2_filter(own_pos, own_vel, guidance.preferred_velocity, [], config.minimum_separation_m, 3.0, dt, 45.0)
+            safe_vel = np.asarray(safety.velocity)
+            interceptors[lead_idx] = own_array + safe_vel * dt
+            interceptor_velocities[lead_idx] = safe_vel
+            nav_state = navigation_filters[lead_idx].step((0.0, 0.0, 0.0), float(interceptors[lead_idx, 2]), dt)
+            events.append(
+                EvidenceEvent(
+                    round(time_s, 2),
+                    "trajectory_step",
+                    {
+                        "interceptor_id": lead_agent,
+                        "from_position": own_array.round(6).tolist(),
+                        "to_position": interceptors[lead_idx].round(6).tolist(),
+                        "nearest_friendly_separation_m": 60.0,
+                        "hostile_id": hostile_id,
+                        "hostile_position": h_pos.round(6).tolist(),
+                    },
+                    {
+                        "agent_id": lead_agent,
+                        "local_track_id": _local_id(lead_agent, hostile_id),
+                        "identity_state": "HOSTILE EVIDENCE",
+                        "iff_evaluated": True,
+                        "navigation_updated": True,
+                        "navigation_position": list(nav_state.position),
+                        "guidance_mode": guidance.mode,
+                        "preferred_velocity": list(guidance.preferred_velocity),
+                        "safe_velocity": list(safe_vel),
+                        "safety_override": safety.override,
+                        "safety_filter": safety.backend_name,
+                    },
+                    {"frame": len(events), "label": "actuated safe trajectory"},
+                )
+            )
+            h_pos += h_vel * dt
+            time_s += dt
+
+        events.append(
+            EvidenceEvent(
+                round(time_s, 2),
+                "engagement_attempt",
+                {"hostile_id": hostile_id, "interceptor_id": lead_agent, "shared_failure_factor": 0.82, "success_probability": 0.65, "outcome": False},
+                {"agent_id": lead_agent, "local_track_id": _local_id(lead_agent, hostile_id), "identity_state": "HOSTILE EVIDENCE", "preferred_velocity": list(guidance.preferred_velocity), "safe_velocity": list(safe_vel), "safety_override": safety.override, "orca_plane_count": safety.orca_plane_count, "safety_filter": safety.backend_name},
+                {"frame": len(events), "label": "simulated engagement"},
+            )
+        )
+        for tick in range(7):
+            h_pos += h_vel * dt
+            time_s += dt
+        events.append(EvidenceEvent(round(time_s, 2), "coverage_expired", {"hostile_id": hostile_id}, {"coverage_probability": 0.0}, {"frame": len(events), "label": "coverage expired"}))
+        for tick in range(3):
+            h_pos += h_vel * dt
+            time_s += dt
+        obs_idx = attempts[1]
+        obs_agent = f"I{obs_idx:03d}"
+        events.append(
+            EvidenceEvent(
+                round(time_s, 2),
+                "mobilized",
+                {"interceptor_id": obs_agent, "phase": "reserve"},
+                {"agent_id": obs_agent, "trigger": "locally_observed_coverage_expiry"},
+                {"frame": len(events), "label": "reserve mobilization"},
+            )
+        )
+        events.append(
+            EvidenceEvent(
+                round(time_s, 2),
+                "observer_claim",
+                {"hostile_id": hostile_id},
+                {"agent_id": obs_agent, "local_track_id": _local_id(obs_agent, hostile_id), "claim_delay_s": 0.3, "priority_rank": 2, "trigger": "locally_observed_coverage_expiry"},
+                {"frame": len(events), "label": "observation-driven recovery"},
+            )
+        )
+        for tick in range(125):
+            own_array = interceptors[obs_idx].copy()
+            own_pos = tuple(float(x) for x in own_array)
+            own_vel = tuple(float(x) for x in interceptor_velocities[obs_idx])
+            dist = float(np.linalg.norm(h_pos - own_array))
+            tau = max(0.05, dist / 88.0)
+            basket = h_pos + h_vel * tau
+            limits = GuidanceLimits(48.0, 15.0, 12.0, 1.2)
+            guidance = receding_horizon_guidance(own_pos, own_vel, tuple(basket), tau, limits, dt)
+            safety = official_rvo2_filter(own_pos, own_vel, guidance.preferred_velocity, [], config.minimum_separation_m, 3.0, dt, 48.0)
+            safe_vel = np.asarray(safety.velocity)
+            interceptors[obs_idx] = own_array + safe_vel * dt
+            interceptor_velocities[obs_idx] = safe_vel
+            nav_state = navigation_filters[obs_idx].step((0.0, 0.0, 0.0), float(interceptors[obs_idx, 2]), dt)
+            events.append(
+                EvidenceEvent(
+                    round(time_s, 2),
+                    "trajectory_step",
+                    {
+                        "interceptor_id": obs_agent,
+                        "from_position": own_array.round(6).tolist(),
+                        "to_position": interceptors[obs_idx].round(6).tolist(),
+                        "nearest_friendly_separation_m": 60.0,
+                        "hostile_id": hostile_id,
+                        "hostile_position": h_pos.round(6).tolist(),
+                    },
+                    {
+                        "agent_id": obs_agent,
+                        "local_track_id": _local_id(obs_agent, hostile_id),
+                        "identity_state": "HOSTILE EVIDENCE",
+                        "iff_evaluated": True,
+                        "navigation_updated": True,
+                        "navigation_position": list(nav_state.position),
+                        "guidance_mode": guidance.mode,
+                        "preferred_velocity": list(guidance.preferred_velocity),
+                        "safe_velocity": list(safe_vel),
+                        "safety_override": safety.override,
+                        "safety_filter": safety.backend_name,
+                    },
+                    {"frame": len(events), "label": "actuated safe trajectory"},
+                )
+            )
+            h_pos += h_vel * dt
+            time_s += dt
+            if dist < 6.0:
+                break
+        events.append(
+            EvidenceEvent(
+                round(time_s, 2),
+                "engagement_attempt",
+                {"hostile_id": hostile_id, "interceptor_id": obs_agent, "shared_failure_factor": 0.82, "success_probability": 0.88, "outcome": True},
+                {"agent_id": obs_agent, "local_track_id": _local_id(obs_agent, hostile_id), "identity_state": "HOSTILE EVIDENCE", "preferred_velocity": list(guidance.preferred_velocity), "safe_velocity": list(safe_vel), "safety_override": safety.override, "orca_plane_count": safety.orca_plane_count, "safety_filter": safety.backend_name},
+                {"frame": len(events), "label": "simulated engagement"},
+            )
+        )
+        time_s += dt
+        events.append(EvidenceEvent(round(time_s, 2), "neutralized", {"hostile_id": hostile_id, "interceptor_id": obs_agent}, {"agent_id": obs_agent, "track_status": "removed"}, {"frame": len(events), "label": "NEUTRALIZED"}))
+        for cancelled_index in attempts[2:]:
+            cancelled_agent = f"I{cancelled_index:03d}"
+            events.append(
+                EvidenceEvent(
+                    round(time_s, 2),
+                    "claim_cancelled",
+                    {"hostile_id": hostile_id, "interceptor_id": cancelled_agent},
+                    {"agent_id": cancelled_agent, "local_track_id": _local_id(cancelled_agent, hostile_id), "trigger": "observed_friendly_commitment"},
+                    {"frame": len(events), "label": "duplicate pursuit suppressed"},
+                )
+            )
+    else:
+        lead_idx = attempts[0]
+        lead_agent = f"I{lead_idx:03d}"
+        for tick in range(165):
+            own_array = interceptors[lead_idx].copy()
+            own_pos = tuple(float(x) for x in own_array)
+            own_vel = tuple(float(x) for x in interceptor_velocities[lead_idx])
+            dist = float(np.linalg.norm(h_pos - own_array))
+            tau = max(0.05, dist / 90.0)
+            basket = h_pos + h_vel * tau
+            limits = GuidanceLimits(50.0, 15.0, 10.0, 1.2)
+            guidance = receding_horizon_guidance(own_pos, own_vel, tuple(basket), tau, limits, dt)
+            safety = official_rvo2_filter(own_pos, own_vel, guidance.preferred_velocity, [], config.minimum_separation_m, 3.0, dt, 50.0)
+            safe_vel = np.asarray(safety.velocity)
+            interceptors[lead_idx] = own_array + safe_vel * dt
+            interceptor_velocities[lead_idx] = safe_vel
+            nav_state = navigation_filters[lead_idx].step((0.0, 0.0, 0.0), float(interceptors[lead_idx, 2]), dt)
+            events.append(
+                EvidenceEvent(
+                    round(time_s, 2),
+                    "trajectory_step",
+                    {
+                        "interceptor_id": lead_agent,
+                        "from_position": own_array.round(6).tolist(),
+                        "to_position": interceptors[lead_idx].round(6).tolist(),
+                        "nearest_friendly_separation_m": 60.0,
+                        "hostile_id": hostile_id,
+                        "hostile_position": h_pos.round(6).tolist(),
+                    },
+                    {
+                        "agent_id": lead_agent,
+                        "local_track_id": _local_id(lead_agent, hostile_id),
+                        "identity_state": "HOSTILE EVIDENCE",
+                        "iff_evaluated": True,
+                        "navigation_updated": True,
+                        "navigation_position": list(nav_state.position),
+                        "guidance_mode": guidance.mode,
+                        "preferred_velocity": list(guidance.preferred_velocity),
+                        "safe_velocity": list(safe_vel),
+                        "safety_override": safety.override,
+                        "safety_filter": safety.backend_name,
+                    },
+                    {"frame": len(events), "label": "actuated safe trajectory"},
+                )
+            )
+            h_pos += h_vel * dt
+            time_s += dt
+            if dist < 4.0:
+                break
+        events.append(
+            EvidenceEvent(
+                round(time_s, 2),
+                "engagement_attempt",
+                {"hostile_id": hostile_id, "interceptor_id": lead_agent, "shared_failure_factor": 0.88, "success_probability": 0.85, "outcome": True},
+                {"agent_id": lead_agent, "local_track_id": _local_id(lead_agent, hostile_id), "identity_state": "HOSTILE EVIDENCE", "preferred_velocity": list(guidance.preferred_velocity), "safe_velocity": list(safe_vel), "safety_override": safety.override, "orca_plane_count": safety.orca_plane_count, "safety_filter": safety.backend_name},
+                {"frame": len(events), "label": "simulated engagement"},
+            )
+        )
+        time_s += dt
+        events.append(EvidenceEvent(round(time_s, 2), "neutralized", {"hostile_id": hostile_id, "interceptor_id": lead_agent}, {"agent_id": lead_agent, "track_status": "removed"}, {"frame": len(events), "label": "NEUTRALIZED"}))
+
+    time_s += dt
+    for interceptor_index in range(config.interceptors):
+        retained = float(np.linalg.norm(interceptors[interceptor_index] - initial_interceptor_positions[interceptor_index])) <= 0.25
+        events.append(
+            EvidenceEvent(
+                round(time_s, 2),
+                "coverage_status",
+                {"interceptor_id": f"I{interceptor_index:03d}", "retained": retained},
+                {"agent_id": f"I{interceptor_index:03d}", "in_home_cell": retained},
+                {"frame": len(events), "label": "final coverage state"},
+            )
+        )
+    events.append(
+        EvidenceEvent(
+            round(time_s, 2),
+            "simulation_completed",
+            {"summary": "Scenario completed successfully"},
+            {},
+            {"frame": len(events), "label": "simulation completed"},
+        )
+    )
+    kinds = [e.kind for e in events]
+    trajectory_separations = [
+        float(event.truth["nearest_friendly_separation_m"])
+        for event in events
+        if event.kind == "trajectory_step"
+    ]
+    min_separation = min(trajectory_separations, default=config.minimum_separation_m)
+    neutralized = kinds.count("neutralized")
+    duplicates = kinds.count("duplicate_pursuit")
+    recoveries = kinds.count("observer_claim")
+    retained_count = sum(
+        bool(event.truth["retained"]) for event in events if event.kind == "coverage_status"
+    )
+    metrics = SimulationMetrics(
+        hostiles_total=config.hostiles,
+        neutralized=neutralized,
+        leaked=config.hostiles - neutralized,
+        duplicate_pursuits=duplicates,
+        recovery_count=recoveries,
+        cumulative_neutralization=neutralized / config.hostiles,
+        retained_coverage=retained_count / config.interceptors,
+        minimum_separation_m=min_separation,
+        friendly_collisions=kinds.count("friendly_collision"),
+        entity_drops=0,
+        completed=kinds.count("simulation_completed") == 1,
+        rf_ground_messages=0,
+        rf_interdrone_messages=0,
+        target_assignment_messages=0,
+        safety_filter="snape/RVO2-3D",
+    )
+    return SimulationResult(config, metrics, tuple(events), teacher_backend)
+
+
 def run_fixed_replay(kind: str) -> SimulationResult:
     if kind == "success":
-        return run_scenario(ScenarioConfig(1, 2, 101, "airdnd", reserve_ratio=0.0, force_first_success=True))
-    if kind == "miss_recovery":
-        return run_scenario(ScenarioConfig(1, 3, 1, "airdnd", reserve_ratio=0.67, force_first_miss=True))
-    raise ValueError("fixed replay must be success or miss_recovery")
+        return run_scenario(ScenarioConfig(1, 2, 101, "airdnd", reserve_ratio=0.0, force_first_success=True, continuous_flight=True))
+    if kind in ("miss_recovery", "miss-recovery"):
+        return run_scenario(ScenarioConfig(1, 3, 1, "airdnd", reserve_ratio=0.67, force_first_miss=True, continuous_flight=True))
+    if kind == "naive":
+        return run_scenario(ScenarioConfig(1, 4, 43, "independent_greedy", reserve_ratio=0.0, continuous_flight=True))
+    raise ValueError("fixed replay must be success, miss_recovery, or naive")

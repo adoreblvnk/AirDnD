@@ -20,11 +20,11 @@
     "note": "AC pass claims are contingent on generated simulation results"
   },
   "evidence_class": "simulation_evidence",
-  "git_revision": "e17e5db5a1ab05ceafff02120b0cd51449bbd546",
+  "git_revision": "c16c4df3c1e1479e4baf243f645b919b6b794cdf",
   "host": {
     "machine": "arm64",
-    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
-    "python": "3.14.7"
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.14"
   },
   "hostiles": 100,
   "interceptors": 125,
@@ -143,9 +143,9 @@
       "entity_drops": 0,
       "friendly_collisions": 0,
       "latency": {
-        "p50_ms": 18.211808500000004,
-        "p95_ms": 19.038535398799997,
-        "p99_ms": 22.364523810000005
+        "p50_ms": 18.71836,
+        "p95_ms": 19.172433932399997,
+        "p99_ms": 23.303238488880005
       },
       "leakage": {
         "ci95_high": 0.2652000583553149,
@@ -205,9 +205,9 @@
       "entity_drops": 0,
       "friendly_collisions": 0,
       "latency": {
-        "p50_ms": 17.600934672,
-        "p95_ms": 18.069212071999996,
-        "p99_ms": 18.28487785632
+        "p50_ms": 17.962275331999997,
+        "p95_ms": 18.4351990708,
+        "p99_ms": 18.49098680632
       },
       "leakage": {
         "ci95_high": 0.2652000583553149,
@@ -267,9 +267,9 @@
       "entity_drops": 0,
       "friendly_collisions": 0,
       "latency": {
-        "p50_ms": 0.388539832,
-        "p95_ms": 0.43451714759999993,
-        "p99_ms": 1.2173637685600012
+        "p50_ms": 0.407555668,
+        "p95_ms": 0.4488794871999999,
+        "p99_ms": 0.46371695456
       },
       "leakage": {
         "ci95_high": 0.5516197382425763,
@@ -329,9 +329,9 @@
       "entity_drops": 0,
       "friendly_collisions": 0,
       "latency": {
-        "p50_ms": 0.526200996,
-        "p95_ms": 0.7307702999999991,
-        "p99_ms": 1.2238149400000002
+        "p50_ms": 0.548345164,
+        "p95_ms": 0.6017547815999998,
+        "p99_ms": 1.2175154265600008
       },
       "leakage": {
         "ci95_high": 0.360967161353327,
@@ -391,9 +391,9 @@
       "entity_drops": 0,
       "friendly_collisions": 0,
       "latency": {
-        "p50_ms": 0.693213168,
-        "p95_ms": 0.7208673976,
-        "p99_ms": 0.9629040585600002
+        "p50_ms": 0.723498164,
+        "p95_ms": 1.0743301835999983,
+        "p99_ms": 1.8119232174400008
       },
       "leakage": {
         "ci95_high": 0.31953179942886584,

@@ -20,7 +20,7 @@
 * **Format:** 48-hour challenge (25–27 September 2026, NUS Enterprise @ i3). Pure software simulation is fully valid; hardware bench rigs serve as credibility anchors.
 
 ### Deliverables & Evaluation Criteria
-1. **Video Demonstration:** Max 30 seconds. Working prototype or recorded simulation.
+1. **Video Demonstration:** 2–2.5 minutes (with 0.5–1 min hook). Working prototype or recorded simulation.
 2. **Presentation Deck:** 3 minutes live pitch. Spoken to, not read from.
 3. **Technical Archive:** Single ZIP containing source code, CAD/models, simulation configs, datasets, test logs, and bench data.
 4. **README:** File manifest and deterministic reproduction/run instructions.
