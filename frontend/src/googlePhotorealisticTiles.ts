@@ -1,14 +1,26 @@
 import { createGooglePhotorealistic3DTileset, Ion } from 'cesium';
 
-export const GOOGLE_TILES_TOKEN_ERROR =
+export const GOOGLE_TILES_ION_TOKEN_ERROR =
   'Google Photorealistic 3D Tiles are unavailable: VITE_CESIUM_ION_TOKEN is required.';
+export const GOOGLE_TILES_API_KEY_ERROR =
+  'Google Photorealistic 3D Tiles are unavailable: VITE_GOOGLE_MAPS_API_KEY is required.';
 
-export async function loadGooglePhotorealisticTiles(token: string | undefined) {
-  if (!token?.trim()) throw new Error(GOOGLE_TILES_TOKEN_ERROR);
+interface GooglePhotorealisticTilesConfig {
+  ionToken?: string;
+  googleMapsApiKey?: string;
+}
 
-  Ion.defaultAccessToken = token;
+export async function loadGooglePhotorealisticTiles({
+  ionToken,
+  googleMapsApiKey,
+}: GooglePhotorealisticTilesConfig) {
+  if (!ionToken?.trim()) throw new Error(GOOGLE_TILES_ION_TOKEN_ERROR);
+  if (!googleMapsApiKey?.trim()) throw new Error(GOOGLE_TILES_API_KEY_ERROR);
+
+  Ion.defaultAccessToken = ionToken;
   try {
     return await createGooglePhotorealistic3DTileset({
+      key: googleMapsApiKey,
       onlyUsingWithGoogleGeocoder: true,
     });
   } catch (error) {

@@ -59,3 +59,21 @@ SDTH is where we plant, DVL is where we harvest the rare fruits of defence entre
 
 Demo Day 25–27 September at National University of Singapore
 ```
+
+---
+
+Hi teams,
+
+Hope hacking is going well! With *~15 hours to go*, the mentors and DVL team have been walking around, speaking with teams, and seeing some fantastic progress in a very short span of time.
+
+After careful consideration, we will be *shortlisting 20 of the 40 teams* to present to the judges. Shortlisted teams will be notified by *1:00 PM tomorrow*.
+
+To help us make the shortlisting process as smooth as possible, we’d really appreciate it if you could have the main parts of your submission, particularly your *report, code, and technical archives*, uploaded by *11:00 AM tomorrow*.
+
+Your *pitch deck and other presentation materials can continue to be refined until hacking officially ends*. We will use your laptops in the judging room.
+
+For the *2-day teams*, judging will begin at *2:20 PM*. Please be seated at your team’s space on *Level 2 by 1:00 PM*.
+
+When it is your team's turn to present, we will inform you via WhatsApp.
+
+Thank you, and all the best for the remaining hours of hacking!

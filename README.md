@@ -13,7 +13,12 @@ npm --prefix frontend install
 cp frontend/.env.example frontend/.env.local
 ```
 
-Set `VITE_CESIUM_ION_TOKEN` in `frontend/.env.local` to a token created at `https://ion.cesium.com/tokens`. The worldview intentionally blocks instead of substituting an offline or procedural map when the token or Google tiles cannot be loaded. Never commit `.env.local`.
+Set both variables in `frontend/.env.local`:
+
+- `VITE_CESIUM_ION_TOKEN`: Cesium ion access for the required Google geocoder.
+- `VITE_GOOGLE_MAPS_API_KEY`: a paid Google Maps Platform key with Map Tiles API and billing enabled, restricted to the app's web origins.
+
+The worldview sends tile requests directly to Google Map Tiles API. It blocks instead of substituting an ion-cached, offline, or procedural map when either credential or the Google tiles cannot be loaded. Never commit `.env.local`.
 
 Generate the checked evidence bundle:
 

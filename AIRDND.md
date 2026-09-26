@@ -610,7 +610,7 @@ Omniscient OR-Tools Teacher    Paired Counterfactual Rollouts   Evaluation Groun
 ### Implementation Standards & Architectural Guidance
 - **Resium & CesiumJS Lifecycle**: Avoid recreating Cesium providers, camera controllers, or scene objects on React render cycles. Use the Resium shell for declarative root mount, but stream entity coordinate updates directly via `SampledPositionProperty` to maintain steady 60 FPS rendering.
 - **FastAPI Telemetry Stream**: The WebSocket connects the simulation backend to the frontend display only. It represents a ground-station monitoring tap and does **not** represent inter-drone RF communication.
-- **Hosted Cesium Requirement**: The worldview requires Google Photorealistic 3D Tiles through Cesium ion and uses the Google geocoder required by the dataset terms. Missing credentials or a failed tile load blocks the map explicitly; the application does not substitute an ellipsoid or procedural basemap.
+- **Hosted Cesium Requirement**: The worldview requires Google Photorealistic 3D Tiles through the paid Google Map Tiles API and uses the Cesium ion Google geocoder required by the dataset terms. Missing credentials or a failed tile load blocks the map explicitly; the application does not substitute an ion-cached asset, ellipsoid, or procedural basemap.
 
 ---
 
@@ -618,7 +618,8 @@ Omniscient OR-Tools Teacher    Paired Counterfactual Rollouts   Evaluation Groun
 
 | Interface / Service | Status | Operational Role in AirDnD |
 |---|---|---|
-| **Cesium ion + Google Photorealistic 3D Tiles** | Required (`VITE_CESIUM_ION_TOKEN`) | Hosted photorealistic Singapore 3D tiles and Google geocoder |
+| **Cesium ion** | Required (`VITE_CESIUM_ION_TOKEN`) | Google geocoder required for Google Photorealistic 3D Tiles |
+| **Google Maps Platform** | Required (`VITE_GOOGLE_MAPS_API_KEY`) | Paid direct access to Map Tiles API with billing enabled |
 | **FastAPI WebSocket** | Internal (`localhost:8000`) | Real-time simulator state, belief vectors, and metrics stream |
 ---
 

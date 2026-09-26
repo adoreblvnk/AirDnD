@@ -49,7 +49,10 @@ export default function CesiumField(props: Props) {
     setTilesReady(false);
     void (async () => {
       try {
-        const loadedTileset = await loadGooglePhotorealisticTiles(import.meta.env.VITE_CESIUM_ION_TOKEN);
+        const loadedTileset = await loadGooglePhotorealisticTiles({
+          ionToken: import.meta.env.VITE_CESIUM_ION_TOKEN,
+          googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+        });
         if (cancelled) {
           loadedTileset.destroy();
           return;

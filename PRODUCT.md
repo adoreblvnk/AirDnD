@@ -24,7 +24,7 @@ AirDnD coordinates without shared truth. Each interceptor uses only noisy local 
 
 ## Operating Context
 
-The product is presented over Marina Bay in a fixed-seed tactical replay using Google Photorealistic 3D Tiles through Cesium ion, then verified through a separate evidence view and headless benchmark outputs. If the hosted tiles cannot be loaded, the worldview blocks explicitly instead of substituting a procedural map.
+The product is presented over Marina Bay in a fixed-seed tactical replay using Google Photorealistic 3D Tiles through the paid Google Map Tiles API and a Cesium ion Google geocoder, then verified through a separate evidence view and headless benchmark outputs. If the hosted tiles cannot be loaded, the worldview blocks explicitly instead of substituting a procedural or ion-cached map.
 
 ## Capabilities and Constraints
 

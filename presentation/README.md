@@ -24,7 +24,7 @@ AC-019 is labeled as a host benchmark, not airborne hardware validation. AC-026 
 
 ## 30-second capture
 
-Prerequisites: the AirDnD app is running with a valid `VITE_CESIUM_ION_TOKEN`, Google Photorealistic 3D Tiles have loaded, `playwright` is installed for Node, Chromium is installed for Playwright, and `ffmpeg` is on `PATH`. The capture fails rather than substituting an offline map when the real tiles are unavailable.
+Prerequisites: the AirDnD app is running with valid `VITE_CESIUM_ION_TOKEN` and `VITE_GOOGLE_MAPS_API_KEY` credentials, direct Google Photorealistic 3D Tiles have loaded, `playwright` is installed for Node, Chromium is installed for Playwright, and `ffmpeg` is on `PATH`. The capture fails rather than substituting an ion-cached or offline map when the paid tiles are unavailable.
 
 ```sh
 npm install --save-dev playwright
