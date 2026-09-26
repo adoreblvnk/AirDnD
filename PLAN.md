@@ -1,5 +1,10 @@
 **AirDnD**
 
+Does it work? - shown through software/hardware demos
+Criterion
+Does the mission need it? - operational fit
+Can it be incubated? - team, economics, route to buyer
+
 Ukraine solved the arithmetic that was bankrupting air defence. Their Sting interceptor costs two thousand dollars against the hundreds of thousands or millions a missile costs, and it has taken down several thousand drones. We cannot have it. Every one of those interceptors is flown by a trained pilot in goggles, one pilot per interceptor per engagement, sustained by a mobilised wartime population we do not have — and Ukraine has banned the export of them regardless. Meanwhile the target has outrun the answer: the jet drones now in mass production cruise at 300 to 400 km/h and the newest reach 500 to 600, faster than the interceptors chasing them. Even a copy would arrive obsolete, and building our own stock is the only route left.
 
 **PROBLEM STATEMENT**

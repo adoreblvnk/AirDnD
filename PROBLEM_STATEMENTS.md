@@ -45,25 +45,11 @@
 3. **Onboard Autonomy & Swarm Coordination:** Decentralized peer-to-peer Weapon-Target Assignment (WTA) under total base link denial; dynamic reassignment on intercept failure; self-collision avoidance; leakage metrics against naive baselines.
 4. **Autonomous Patrol & Sustainment:** Closed-loop dock-recharge-rotate cycle modeling fleet size requirements to maintain continuous 24/7 airborne CAP.
 
----
-
-## 04. One Picture, Many Eyes (`SDTH/2026/PS/04`)
-*Multi-modal, multi-timescale intelligence and sensor fusion into actionable C2.*
-
-### Situation & Bottlenecks
-* **Information Paradox:** Ample data exists across radars, maritime AIS, aviation ADS-B, traffic cams, and OSINT, but resides in disconnected silos with conflicting timestamps, identities, and confidence models.
-* **Timescale Disparity:** Strategic warning (weeks/months: logistics patterns, narrative shifts, port abnormalities) vs. Tactical approach (minutes/seconds: inbound kinematic tracks) are rarely unified.
-* **ID-Free Association:** Correlating dense swarm tracks based solely on kinematics and geometry without shared platform IDs.
-* **Sensor Uncertainty & Adversarial OSINT:** Preventing confident-but-faulty sensors or poisoned open-source feeds from skewing the common picture.
-* **Sensor-to-Shooter Actionability:** The bridge from fused situational awareness to automated weapon allocation.
-
----
-
 ## 05. Strategic Context & Venture Lab Blueprint (`Background_ NUS Defense Venture Lab.pdf`)
 
 ### 1. The Strategic Imperative
 * **National Directive:** PM Lawrence Wong (Mandai Hill Camp, April 2026) highlighted that national resilience requires sovereign technology, agile domestic supply chains, and rapid indigenous capability buildup.
-* **Asymmetric Cost-Exchange Inversion:** Cheap off-the-shelf hardware and open CAD files ($2,000 FPVs) render multi-million dollar traditional air defense unviable. 
+* **Asymmetric Cost-Exchange Inversion:** Cheap off-the-shelf hardware and open CAD files ($2,000 FPVs) render multi-million dollar traditional air defense unviable.
 * **Supply Chain Fragility ("Flow beats Stock"):** Stockpiles deplete in days (e.g. 155mm shell crunches); export controls and foreign hoarding mean overseas supply cannot be relied on during a crisis. True resilience is regenerative domestic production and rapid software adaptation.
 * **Regional Context:** Weakening arms control regimes and proliferation of high-end weaponry in the Indo-Pacific (e.g. BrahMos cruise missiles to Indonesia, Philippines, Vietnam).
 
@@ -105,13 +91,3 @@
   - *2-Day Lord of the Rings Prize:* 1st ($3k), 2nd ($2k), 3rd ($1k).
   - *3-Month Track Main Prize:* 1st ($10k), 2nd ($5k), 3rd ($3k).
   - *3-Month Lord of the Rings:* 1st ($5k), 2nd ($3k), 3rd ($2k).
-
----
-
-## Technical Mapping to AirDnD
-
-| SDTH Challenge Layer | Problem Statement Focus | AirDnD Technical Implementation |
-| :--- | :--- | :--- |
-| **Strategic Layer (Ground C2)** | **PS/04 (One Picture, Many Eyes)** & **DVL Little Red Dome** | Multi-source ingest (Radar/ADS-B/CoT), collateral debris calculation around HDB zones, agentic threat evaluation, and 1-click 3-card commander intent gating. |
-| **Tactical Layer (Edge Swarm)** | **PS/03 Layer 3 (Onboard Autonomy)** & **DVL Counter-Swarm** | Decentralized P2P auction / consensus engine executing millisecond Weapon-Target Assignment (WTA) under total EW jamming / zero ground telemetry. |
-| **Economic & Kinetic Allocation** | **PS/03 Layer 3 & Layer 4** & **DVL Cost-Exchange Inversion** | Cost-aware weapon pairing (preserving high-energy interceptors for high-speed jet threats; filtering low-cost decoys). |
