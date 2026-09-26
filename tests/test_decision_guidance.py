@@ -44,6 +44,24 @@ def test_receding_horizon_guidance_limits_velocity_and_reports_terminal_transfer
     assert terminal.mode == "terminal_proportional_navigation"
 
 
+def test_terminal_proportional_navigation_leads_a_crossing_target():
+    limits = GuidanceLimits(max_speed=30.0, max_accel=10.0, max_climb_rate=5.0, terminal_time_s=1.0)
+    straight_chase = receding_horizon_guidance((0, 0, 100), (20, 0, 0), (10, 0, 100), 0.5, limits, 0.1)
+    leads_crosser = receding_horizon_guidance(
+        (0, 0, 100), (20, 0, 0), (10, 0, 100), 0.5, limits, 0.1, target_velocity=(0, 10, 0)
+    )
+    assert straight_chase.mode == leads_crosser.mode == "terminal_proportional_navigation"
+    assert abs(straight_chase.preferred_velocity[1]) < 1e-6
+    assert leads_crosser.preferred_velocity[1] < -0.05
+
+
+def test_receding_horizon_guidance_rejects_closing_speed_below_stall_floor():
+    limits = GuidanceLimits(max_speed=30.0, max_accel=10.0, max_climb_rate=5.0, terminal_time_s=1.0, min_speed=5.0)
+    command = receding_horizon_guidance((0, 0, 100), (0, 0, 0), (1, 0, 100), 4.0, limits, 0.1)
+    assert command.feasible is False
+    assert command.limiting_constraint == "min_speed"
+
+
 def test_official_rvo2_3d_deflects_conflict_for_every_identity():
     safe = official_rvo2_filter(
         position=(0, 0, 100),

@@ -7,6 +7,9 @@ import numpy as np
 
 from .core import Vector3
 
+# Standard true-proportional-navigation gain; 3-5 is the typical missile-guidance range.
+_PN_GAIN = 3.0
+
 
 @dataclass(frozen=True)
 class GuidanceLimits:
@@ -30,6 +33,37 @@ def _tuple3(array: np.ndarray) -> Vector3:
     return (float(array[0]), float(array[1]), float(array[2]))
 
 
+def _proportional_navigation_command(
+    pos: np.ndarray,
+    vel: np.ndarray,
+    basket: np.ndarray,
+    target_velocity: np.ndarray,
+    limits: GuidanceLimits,
+    dt: float,
+) -> np.ndarray:
+    """True proportional navigation: a = -N * Vc * (LOS-rate x LOS-unit)."""
+    relative_position = basket - pos
+    relative_velocity = target_velocity - vel
+    range_m = float(np.linalg.norm(relative_position))
+    if range_m > 1e-6:
+        closing_velocity = -float(relative_position @ relative_velocity) / range_m
+        los_rate = np.cross(relative_position, relative_velocity) / (range_m**2)
+        los_unit = relative_position / range_m
+        pn_accel = -_PN_GAIN * closing_velocity * np.cross(los_rate, los_unit)
+    else:
+        pn_accel = np.zeros(3)
+    max_delta = limits.max_accel * dt
+    accel_norm = float(np.linalg.norm(pn_accel))
+    if accel_norm > max_delta:
+        pn_accel *= max_delta / accel_norm
+    preferred = vel + pn_accel
+    preferred[2] = np.clip(preferred[2], vel[2] - limits.max_climb_rate * dt, vel[2] + limits.max_climb_rate * dt)
+    preferred_speed = float(np.linalg.norm(preferred))
+    if preferred_speed > limits.max_speed:
+        preferred *= limits.max_speed / preferred_speed
+    return preferred
+
+
 def receding_horizon_guidance(
     position: Vector3,
     velocity: Vector3,
@@ -37,6 +71,7 @@ def receding_horizon_guidance(
     time_to_intercept_s: float,
     limits: GuidanceLimits,
     dt: float,
+    target_velocity: Vector3 = (0.0, 0.0, 0.0),
 ) -> GuidanceCommand:
     if time_to_intercept_s <= 0.0:
         return GuidanceCommand(False, "expired_intercept_window", intercept_basket, velocity, "infeasible")
@@ -47,6 +82,14 @@ def receding_horizon_guidance(
     speed = float(np.linalg.norm(desired))
     feasible = float(np.linalg.norm(basket - pos)) <= limits.max_speed * time_to_intercept_s * 1.1
     limiting = None if feasible else "max_speed"
+    if feasible and speed < limits.min_speed:
+        feasible = False
+        limiting = "min_speed"
+    mode = "terminal_proportional_navigation" if time_to_intercept_s <= limits.terminal_time_s else "midcourse_basket"
+    if mode == "terminal_proportional_navigation":
+        target_vel = np.asarray(target_velocity, dtype=float)
+        preferred = _proportional_navigation_command(pos, vel, basket, target_vel, limits, dt)
+        return GuidanceCommand(feasible, limiting, intercept_basket, _tuple3(preferred), mode)
     if speed > limits.max_speed:
         desired *= limits.max_speed / speed
     desired[2] = np.clip(desired[2], -limits.max_climb_rate, limits.max_climb_rate)
@@ -56,7 +99,6 @@ def receding_horizon_guidance(
     if delta_norm > max_delta:
         delta *= max_delta / delta_norm
     preferred = vel + delta
-    mode = "terminal_proportional_navigation" if time_to_intercept_s <= limits.terminal_time_s else "midcourse_basket"
     return GuidanceCommand(feasible, limiting, intercept_basket, _tuple3(preferred), mode)
 
 

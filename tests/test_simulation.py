@@ -153,7 +153,10 @@ def test_runtime_actuates_guidance_rvo_navigation_and_iff_in_discrete_steps():
     for event in steps:
         local = event.agent_local
         assert local["guidance_mode"] in {"midcourse_basket", "terminal_proportional_navigation"}
-        assert local["identity_state"] == "HOSTILE EVIDENCE"
+        # Range-dependent optical classification: HOSTILE EVIDENCE is the likely outcome
+        # but not certain, and UNKNOWN is the only other reachable state here since these
+        # engagements never present a friendly beacon or lineage.
+        assert local["identity_state"] in {"HOSTILE EVIDENCE", "UNKNOWN"}
         assert local["iff_evaluated"] is True
         assert local["navigation_updated"] is True
         assert local["safety_filter"] == "snape/RVO2-3D"
@@ -180,6 +183,21 @@ def test_recovery_claim_delay_is_ranked_and_later_claimants_cancel_from_observed
     assert claims[0].agent_local["trigger"] == "locally_observed_coverage_expiry"
     assert cancellations
     assert all(event.agent_local["trigger"] == "observed_friendly_commitment" for event in cancellations)
+
+
+def test_recovery_claims_carry_real_hysteresis_state_not_a_hardcoded_hard_release():
+    result = run_scenario(ScenarioConfig(1, 5, 37, "deterministic_ablation", reserve_ratio=0.8, force_first_miss=True))
+    claims = [event for event in result.events if event.kind == "observer_claim"]
+    assert claims
+    for claim in claims:
+        confirmed = claim.agent_local["hysteresis_confirmed"]
+        assert isinstance(confirmed, bool)
+        # A claimant only becomes the tracked incumbent once hysteresis actually confirms
+        # the switch; otherwise the incumbent track must be left unchanged.
+        if confirmed:
+            assert claim.agent_local["hysteresis_track"] == claim.agent_local["local_track_id"]
+        else:
+            assert claim.agent_local["hysteresis_track"] != claim.agent_local["local_track_id"]
 
 
 def test_all_five_baselines_execute_and_teacher_uses_ortools_when_installed():

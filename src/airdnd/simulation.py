@@ -351,6 +351,9 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
     rng = np.random.default_rng(config.seed + 20_000)
     shared_factors = rng.uniform(0.72, 1.02, config.hostiles)
     attempt_noise = rng.random((config.hostiles, max(1, config.interceptors)))
+    # Separately seeded so IFF identification draws never shift the shared-factor/attempt
+    # RNG streams above (which several tests pin exact values against).
+    iff_rng = np.random.default_rng(config.seed + 40_000)
     events: list[EvidenceEvent] = list(policy_events)
     pending_observers = {
         str(event.truth["interceptor_id"])
@@ -381,11 +384,14 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                 {"frame": len(events), "evaluator_overlay": False, "label": "local observation"},
             )
         )
-        recovery_candidates: list[Candidate] = []
-        for interceptor_index in attempts[1:]:
-            recovery_agent = f"I{interceptor_index:03d}"
-            recovery_track = LocalTracker(
-                recovery_agent,
+        # Built for every attempt (not just recovery backups) so the hysteresis state
+        # machine below can compare a newly-arriving claimant's utility against the
+        # incumbent's, using the same local-track construction used for ranking.
+        candidate_by_agent: dict[str, Candidate] = {}
+        for interceptor_index in attempts:
+            claimant_agent = f"I{interceptor_index:03d}"
+            claimant_track = LocalTracker(
+                claimant_agent,
                 config.seed + interceptor_index,
                 noise_std_m=2.0,
             ).observe(
@@ -398,31 +404,32 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                 tuple(float(x) for x in interceptors[interceptor_index]),
                 sensor_range_m=5_000.0,
             )[0]
-            local_intercept = np.asarray(recovery_track.position, dtype=float)
+            local_intercept = np.asarray(claimant_track.position, dtype=float)
             local_distance = float(np.linalg.norm(local_intercept - interceptors[interceptor_index]))
-            recovery_candidates.append(
-                Candidate(
-                    track_id=recovery_track.local_id,
-                    belief=BeliefOutput(
-                        0.9,
-                        float(np.clip(1.0 - local_distance / 2_000.0, 0.05, 0.95)),
-                        0.0,
-                        local_distance / 30.0,
-                        recovery_track.position,
-                        4.2,
-                        0.75,
-                    ),
-                    consequence=1.0,
-                    assigned_sector=False,
-                    time_to_boundary_s=float(max(0.0, local_intercept[1]) / 30.0),
-                    expenditure_cost=0.05,
-                    battery_cost=0.03,
-                    coverage_loss_cost=0.02,
-                    collision_cost=0.0,
-                    battery=0.85,
-                )
+            candidate_by_agent[claimant_agent] = Candidate(
+                track_id=claimant_track.local_id,
+                belief=BeliefOutput(
+                    0.9,
+                    float(np.clip(1.0 - local_distance / 2_000.0, 0.05, 0.95)),
+                    0.0,
+                    local_distance / 30.0,
+                    claimant_track.position,
+                    4.2,
+                    0.75,
+                ),
+                consequence=1.0,
+                assigned_sector=False,
+                time_to_boundary_s=float(max(0.0, local_intercept[1]) / 30.0),
+                expenditure_cost=0.05,
+                battery_cost=0.03,
+                coverage_loss_cost=0.02,
+                collision_cost=0.0,
+                battery=0.85,
             )
+        recovery_candidates = [candidate_by_agent[f"I{index:03d}"] for index in attempts[1:]]
         recovery_delays = claim_delay_s(recovery_candidates)
+        utility_by_track = {candidate.track_id: mission_utility(candidate) for candidate in candidate_by_agent.values()}
+        hysteresis = Hysteresis()
         for duplicate_index in attempts[1:]:
             duplicate_agent = f"I{duplicate_index:03d}"
             if config.method == "independent_greedy" or duplicate_agent in upfront_mobilized:
@@ -442,6 +449,9 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                 )
         for order, interceptor_index in enumerate(attempts):
             agent_id = f"I{interceptor_index:03d}"
+            if order == 0:
+                primary_track_id = _local_id(agent_id, hostile_id)
+                hysteresis.consider(primary_track_id, utility_by_track[primary_track_id], 0.0, 0.0, True)
             if order > 0 and config.method != "independent_greedy" and agent_id in pending_observers:
                 time_s += 4.2
                 events.append(EvidenceEvent(time_s, "coverage_expired", {"hostile_id": hostile_id}, {"coverage_probability": 0.0}, {"frame": len(events), "label": "coverage expired"}))
@@ -459,7 +469,18 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                         )
                     )
                     pending_observers.remove(agent_id)
-                events.append(EvidenceEvent(time_s, "observer_claim", {"hostile_id": hostile_id}, {"agent_id": agent_id, "local_track_id": local_track_id, "claim_delay_s": delay, "priority_rank": int(round(delay / 0.15)), "trigger": "locally_observed_coverage_expiry"}, {"frame": len(events), "label": "observation-driven recovery"}))
+                # Progress-aware switching hysteresis (AIRDND.md §4.3): weigh the newly
+                # arriving claimant's utility against the incumbent's before confirming
+                # the handoff, rather than accepting every claim immediately.
+                progress = float(np.clip(time_s / 8.0, 0.0, 1.0))
+                hysteresis_confirmed = hysteresis.consider(
+                    local_track_id,
+                    utility_by_track[local_track_id],
+                    utility_by_track.get(hysteresis.current_track, 0.0),
+                    progress,
+                    hard_release=False,
+                )
+                events.append(EvidenceEvent(time_s, "observer_claim", {"hostile_id": hostile_id}, {"agent_id": agent_id, "local_track_id": local_track_id, "claim_delay_s": delay, "priority_rank": int(round(delay / 0.15)), "trigger": "locally_observed_coverage_expiry", "hysteresis_confirmed": hysteresis_confirmed, "hysteresis_track": hysteresis.current_track}, {"frame": len(events), "label": "observation-driven recovery"}))
 
             probability = float(np.clip(0.80 * shared_factors[h], 0.05, 0.95))
             outcome = attempt_noise[h, order] < probability
@@ -467,18 +488,28 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                 outcome = False
             if h == 0 and order == 0 and config.force_first_success:
                 outcome = True
+            # Optical-only hostile classification degrades with range/occlusion instead of
+            # being unconditionally certain; the one-way NIR beacon never fires here because
+            # these are genuine hostiles, not friendlies presenting a beacon.
+            engagement_distance = float(np.linalg.norm(hostiles[h] - interceptors[interceptor_index]))
+            identification_probability = float(np.clip(1.0 - engagement_distance / 3_000.0, 0.05, 0.97))
             identity_state = IFFMachine().update(
                 lineage=False,
                 beacon_valid=False,
                 beacon_bound=False,
-                hostile_evidence=True,
+                hostile_evidence=bool(iff_rng.random() < identification_probability),
             )
             guidance = None
             safety = None
             for trajectory_tick in range(3):
                 own_array = interceptors[interceptor_index].copy()
-                own_position = tuple(float(x) for x in own_array)
-                own_velocity = tuple(float(x) for x in interceptor_velocities[interceptor_index])
+                # Guidance and the safety filter act on the interceptor's own INS/barometer
+                # estimate, not simulator ground truth; only the physical motion integration
+                # below remains authoritative ground truth.
+                estimated_position = navigation_filters[interceptor_index].position.copy()
+                estimated_velocity = navigation_filters[interceptor_index].velocity.copy()
+                own_position = tuple(float(x) for x in estimated_position)
+                own_velocity = tuple(float(x) for x in estimated_velocity)
                 distances_to_others = np.linalg.norm(interceptors - own_array, axis=1)
                 nearest_indices = [int(index) for index in np.argsort(distances_to_others) if int(index) != interceptor_index][:8]
                 neighbor_tracks = [
@@ -489,7 +520,7 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                     )
                     for index in nearest_indices
                 ]
-                time_to_intercept = max(0.3, float(np.linalg.norm(hostiles[h] - own_array)) / 30.0)
+                time_to_intercept = max(0.3, float(np.linalg.norm(hostiles[h] - estimated_position)) / 30.0)
                 guidance = receding_horizon_guidance(
                     own_position,
                     own_velocity,
@@ -497,6 +528,7 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                     time_to_intercept,
                     GuidanceLimits(30.0, 10.0, 5.0, 1.0),
                     0.1,
+                    target_velocity=(0.0, -30.0, 0.0),
                 )
                 safety = official_rvo2_filter(
                     position=own_position,
