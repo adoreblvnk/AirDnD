@@ -581,6 +581,11 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                             "safe_velocity": list(safety.velocity),
                             "safety_override": safety.override,
                             "safety_filter": safety.backend_name,
+                            "predicted_min_separation_m": (
+                                safety.predicted_min_separation_m
+                                if math.isfinite(safety.predicted_min_separation_m)
+                                else None
+                            ),
                         },
                         {"frame": len(events), "label": "actuated safe trajectory"},
                     )

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import CesiumField from './CesiumField';
+import SideElevation from './SideElevation';
+import SafetyPanel from './SafetyPanel';
 import { loadReplay, initialState, reducer, replayAt, replayDecision, units, type Perspective, type Replay, type ReplayFrame } from './worldview';
 import './styles.css';
 
@@ -110,6 +112,7 @@ function Worldview() {
         />}
         {frame && <TacticalOverlay perspective={state.perspective} frame={frame} localId={selected.local} />}
         <div className="plot-title" aria-hidden="true"><span>MARINA BAY / 01°17′N</span><span>103°51′E / ALT 0—900M</span></div>
+        {frame && <SideElevation frame={frame} selected={state.selected} />}
         <div className={`event-marker ${moment.event === 'MISS' ? 'alert' : ''}`}>
           <strong>{moment.event}</strong><span>{moment.description}</span>
         </div>
@@ -169,6 +172,7 @@ function Worldview() {
           <p>v<sub>pref</sub> [{selected.preferredVelocity?.join(', ') ?? 'not recorded'}] · v<sub>safe</sub> [{selected.safeVelocity?.join(', ') ?? 'not recorded'}]</p>
           <p>Safety override: {selected.safetyOverride === undefined ? 'NOT RECORDED' : selected.safetyOverride ? 'ACTIVE' : 'CLEAR'}</p>
         </div>}
+        <SafetyPanel replay={replay} frame={state.frame} agentId={selectedUnit.agentId} />
         <div className="fleet-select">
           <span>SELECT UNIT</span>
           {units.map((unit) => {

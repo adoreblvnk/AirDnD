@@ -92,6 +92,7 @@ export interface LocalView {
   preferred_velocity?: number[];
   safe_velocity?: number[];
   safety_override?: boolean;
+  predicted_min_separation_m?: number | null;
   claim_delay_s?: number;
   noisy_position?: number[];
   track_status?: string;
@@ -247,4 +248,52 @@ export function replayDecision(replay: Replay, frame: number, agentId: string): 
     safeVelocity: local.safe_velocity,
     safetyOverride: local.safety_override,
   };
+}
+
+export interface SafetyReading {
+  preferredVelocity?: number[];
+  safeVelocity?: number[];
+  safetyOverride?: boolean;
+  predictedMinSeparationM?: number | null;
+  actualSeparationM?: number;
+}
+
+// trajectory_step frames (guidance/RVO2 output) never carry a `belief`, so replayDecision's
+// belief-gated lookup can't surface them - this reads the same accumulated frames for
+// whichever local view most recently reported a preferred/safe velocity pair instead.
+export function replaySafety(replay: Replay, frame: number, agentId: string): SafetyReading | undefined {
+  const elapsed = replay.frames.filter((item) => item.frame <= frame);
+  const source = elapsed.filter((item) => item.localViews[agentId]?.preferred_velocity).at(-1);
+  const local = source?.localViews[agentId];
+  if (!local) return undefined;
+  const overview = Object.assign({}, ...elapsed.map((item) => item.overview)) as Record<string, unknown>;
+  const actualSeparationM = typeof overview.nearest_friendly_separation_m === 'number' ? overview.nearest_friendly_separation_m : undefined;
+  return {
+    preferredVelocity: local.preferred_velocity,
+    safeVelocity: local.safe_velocity,
+    safetyOverride: local.safety_override,
+    predictedMinSeparationM: local.predicted_min_separation_m,
+    actualSeparationM,
+  };
+}
+
+export interface SeparationSample {
+  frame: number;
+  separationM?: number;
+  override: boolean;
+}
+
+export function replaySeparationSeries(replay: Replay, uptoFrame: number, agentId: string, windowSize = 24): SeparationSample[] {
+  const start = Math.max(0, uptoFrame - windowSize + 1);
+  const samples: SeparationSample[] = [];
+  for (let f = start; f <= uptoFrame; f += 1) {
+    const frameAt = replayAt(replay, f);
+    const rawSeparation = frameAt.overview.nearest_friendly_separation_m;
+    samples.push({
+      frame: f,
+      separationM: typeof rawSeparation === 'number' ? rawSeparation : undefined,
+      override: frameAt.localViews[agentId]?.safety_override === true,
+    });
+  }
+  return samples;
 }
