@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => {
         pick: vi.fn(),
       },
       clock: { currentTime: {}, shouldAnimate: true },
-      camera: { setView: vi.fn() },
+      camera: { setView: vi.fn(), flyTo: vi.fn() },
       screenSpaceEventHandler: { setInputAction: vi.fn(), removeInputAction: vi.fn() },
       dataSources: { add: vi.fn(), remove: vi.fn() },
       entities,
@@ -57,8 +57,8 @@ vi.mock('cesium', () => ({
   HorizontalOrigin: { LEFT: 0 },
   IonGeocodeProviderType: { GOOGLE: 'GOOGLE' },
   LabelStyle: { FILL_AND_OUTLINE: 0 },
+  Math: { toRadians: (deg: number) => (deg * Math.PI) / 180 },
   NearFarScalar: class {},
-  Rectangle: { fromDegrees: vi.fn(() => ({})) },
   ScreenSpaceEventType: { LEFT_CLICK: 0 },
   VerticalOrigin: { CENTER: 0 },
 }));

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Viewer } from 'resium';
-import { Cartesian2, Cartesian3, Color, ConstantProperty, CustomDataSource, Entity, HeightReference, HorizontalOrigin, IonGeocodeProviderType, LabelStyle, NearFarScalar, Rectangle, ScreenSpaceEventType, VerticalOrigin, Viewer as CesiumViewer } from 'cesium';
+import { Cartesian2, Cartesian3, Color, ConstantProperty, CustomDataSource, Entity, HeightReference, HorizontalOrigin, IonGeocodeProviderType, LabelStyle, Math as CesiumMath, NearFarScalar, ScreenSpaceEventType, VerticalOrigin, Viewer as CesiumViewer } from 'cesium';
 import { replayPosition, units, type Perspective, type ReplayFrame } from './worldview';
 import { loadGooglePhotorealisticTiles } from './googlePhotorealisticTiles';
 
@@ -15,6 +15,17 @@ const red = Color.fromCssColorString('#ed665b');
 const amber = Color.fromCssColorString('#e2b75d');
 const chalk = Color.fromCssColorString('#dce7e5');
 const pos = (lon: number, lat: number, height: number) => Cartesian3.fromDegrees(lon, lat, height);
+
+// An oblique "god's eye" view: destination is the CAMERA's own position, not a
+// look-at target, so an unset orientation defaults to nadir (straight down) and
+// looks flat even over real 3D tiles. A south offset + negative pitch gives the
+// tilted, building-height-revealing angle the photorealistic tiles are for.
+function obliqueView(lon: number, lat: number, altitudeM: number, southOffsetDeg: number) {
+  return {
+    destination: Cartesian3.fromDegrees(lon, lat - southOffsetDeg, altitudeM),
+    orientation: { heading: CesiumMath.toRadians(0), pitch: CesiumMath.toRadians(-55), roll: 0.0 },
+  };
+}
 
 function addPoint(source: CustomDataSource, id: string, color: Color, position: Cartesian3, label = '') {
   return source.entities.add(new Entity({ id, position, point: { color, pixelSize: 8, outlineColor: Color.fromAlpha(chalk, 0.85), outlineWidth: 1, heightReference: HeightReference.NONE, disableDepthTestDistance: Number.POSITIVE_INFINITY }, label: { text: label, font: '11px ui-monospace, monospace', fillColor: chalk, outlineColor: Color.fromCssColorString('#081014'), outlineWidth: 3, style: LabelStyle.FILL_AND_OUTLINE, horizontalOrigin: HorizontalOrigin.LEFT, verticalOrigin: VerticalOrigin.CENTER, pixelOffset: new Cartesian2(12, 0), scaleByDistance: new NearFarScalar(300, 1, 18000, 0.55), disableDepthTestDistance: Number.POSITIVE_INFINITY } }));
@@ -71,7 +82,7 @@ export default function CesiumField(props: Props) {
         entities.set('OBS-SELF', addPoint(observer, 'OBS-SELF', blue, pos(center.lon - 0.01, center.lat + 0.008, 470), 'I-19 · OBSERVER')); entities.set('OBS-LEAD', addPoint(observer, 'OBS-LEAD', cyan, pos(center.lon, center.lat, 400), 'LEAD · INFERRED')); entities.set('OBS-THREAT', addPoint(observer, 'OBS-THREAT', amber, pos(center.lon + 0.018, center.lat + 0.008, 500), 'C-09 · LOCAL')); entities.set('OBS-SIGHT-A', addLine(observer, 'OBS-SIGHT-A', cyan, [], 3)); entities.set('OBS-SIGHT-B', addLine(observer, 'OBS-SIGHT-B', amber, [], 3)); entities.set('OBS-WINDOW', observer.entities.add({ id: 'OBS-WINDOW', position: pos(center.lon + 0.01, center.lat, 420), ellipse: { semiMajorAxis: 800, semiMinorAxis: 800, height: 440, material: Color.fromAlpha(cyan, 0.08), outline: true, outlineColor: cyan } }));
         entities.set('HOSTILE-SELF', addPoint(hostile, 'HOSTILE-SELF', red, pos(center.lon + 0.02, center.lat + 0.01, 500), 'HOSTILE · SELF')); entities.set('HOSTILE-CONTACT', addPoint(hostile, 'HOSTILE-CONTACT', amber, pos(center.lon - 0.01, center.lat, 430), 'OPTICAL CONTACT')); entities.set('HOSTILE-ROUTE', addLine(hostile, 'HOSTILE-ROUTE', Color.fromAlpha(red, 0.65), [], 2));
         viewer.screenSpaceEventHandler.setInputAction((movement: { position: Cartesian2 }) => { const picked = viewer.scene.pick(movement.position) as { id?: Entity } | undefined; const id = picked?.id?.id; if (id && localIds.some((localId) => localId === id)) props.onSelect(id); }, ScreenSpaceEventType.LEFT_CLICK);
-        registryRef.current = { truth, interceptor, observer, hostile, geometry, entities }; viewer.camera.setView({ destination: Rectangle.fromDegrees(103.815, 1.248, 103.898, 1.323) }); viewer.scene.requestRender();
+        registryRef.current = { truth, interceptor, observer, hostile, geometry, entities }; viewer.camera.setView(obliqueView(center.lon, center.lat, 1200, 0.003)); viewer.scene.requestRender();
         setTilesReady(true);
       } catch (error) {
         if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Google Photorealistic 3D Tiles failed to load.');
@@ -118,7 +129,14 @@ export default function CesiumField(props: Props) {
     registry.truth.show = props.perspective === 'OVERVIEW' || props.groundTruth; registry.interceptor.show = props.perspective === 'INTERCEPTOR'; registry.observer.show = props.perspective === 'OBSERVER'; registry.hostile.show = props.perspective === 'HOSTILE'; registry.geometry.show = props.perspective === 'OVERVIEW' || props.groundTruth; viewer.scene.requestRenderMode = !props.playing; viewer.scene.requestRender();
   }, [ready, props.frame, props.playing, props.groundTruth, props.perspective, props.selected]);
 
-  useEffect(() => { const viewer = viewerRef.current?.cesiumElement; if (!viewer) return; viewer.camera.setView({ destination: props.sector ? Rectangle.fromDegrees(103.837, 1.268, 103.878, 1.304) : Rectangle.fromDegrees(103.815, 1.248, 103.898, 1.323) }); viewer.scene.requestRender(); }, [props.sector]);
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer) return;
+    viewer.camera.flyTo({
+      ...(props.sector ? obliqueView(center.lon, center.lat, 600, 0.0015) : obliqueView(center.lon, center.lat, 1200, 0.003)),
+      duration: 1.4,
+    });
+  }, [props.sector]);
   return (
     <div className="cesium-field">
       <Viewer ref={viewerRef as never} full animation={false} timeline={false} baseLayerPicker={false} geocoder={IonGeocodeProviderType.GOOGLE} homeButton={false} sceneModePicker={false} navigationHelpButton={false} fullscreenButton={false} infoBox={false} selectionIndicator={false} baseLayer={false} scene3DOnly requestRenderMode={!props.playing} />
