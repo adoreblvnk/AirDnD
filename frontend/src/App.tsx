@@ -92,6 +92,10 @@ function Worldview() {
   const moment = frame?.event ?? { event: 'GRID SET' as const, description: replayError || 'Loading generated replay' };
 
   useEffect(() => {
+    document.body.classList.add('worldview-active');
+  }, []);
+
+  useEffect(() => {
     let active = true;
     setReplay(null);
     setReplayError('');

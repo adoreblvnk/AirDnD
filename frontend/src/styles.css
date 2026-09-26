@@ -1,7 +1,11 @@
 :root { color-scheme: dark; font-family: "Inter", system-ui, sans-serif; background: #081014; color: #dce7e5; font-synthesis: none; --field: #081014; --ink: #dce7e5; --muted: #89a09f; --blue: #58a8d8; --red: #ed665b; --amber: #e2b75d; --line: rgba(180, 210, 208, .2); --radius: 10px; }
 * { box-sizing: border-box; }
-html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+html, body, #root { width: 100%; height: 100%; margin: 0; }
 body { background: var(--field); }
+/* The fixed-viewport worldview HUD (never document-scrolled) opts into clipping;
+   Training/Evidence are normal scrollable pages and must not inherit it, or any
+   content past one screen height (e.g. training artifacts) becomes unreachable. */
+body.worldview-active #root { overflow: hidden; }
 button, a, input { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { color: inherit; }
@@ -240,7 +244,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 1px solid 
 .training-error { margin-top: 26px; padding: 12px 0; border-block: 1px solid rgba(237,102,91,.42); color: var(--red); font-size: 11px; line-height: 1.5; }
 
 @media (max-width: 980px) {
-  html, body, #root { overflow: auto; }
+  body.worldview-active #root { overflow: auto; }
   .worldview { min-width: 100%; min-height: 920px; }
   .command-rail { width: 150px; }
   .map-field { left: 150px; right: 0; top: 0; bottom: 320px; border-radius: 0; }
@@ -254,7 +258,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 1px solid 
   .comparison { left: 166px; right: 16px; bottom: 332px; }
 }
 @media (max-width: 640px) {
-  html, body, #root { overflow: hidden; }
+  body.worldview-active #root { overflow: hidden; }
   .worldview { height: 100dvh; min-height: 0; }
   .command-rail { inset: 0 0 auto 0; width: 100%; height: 168px; display: grid; grid-template-columns: 80px 1fr 1fr; gap: 10px; padding: 12px; }
   .command-rail nav { margin: 0; grid-column: 2 / 4; align-self: start; }
