@@ -114,9 +114,12 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 1px solid 
 .separation-chart polyline { fill: none; stroke: var(--blue); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
 .intervention-marker { fill: var(--amber); }
 .fleet-select { margin-top: 18px; display: grid; }
-.fleet-select button { display: flex; justify-content: space-between; border: 0; border-top: 1px solid rgba(180,210,208,.12); background: transparent; padding: 8px 2px; color: var(--muted); font: 500 11px/1 "Inter Tight", sans-serif; cursor: pointer; }
+.fleet-select button { display: flex; justify-content: space-between; align-items: baseline; border: 0; border-top: 1px solid rgba(180,210,208,.12); background: transparent; padding: 8px 2px; color: var(--muted); font: 500 11px/1 "Inter Tight", sans-serif; cursor: pointer; }
 .fleet-select button.selected { color: var(--blue); }
 .fleet-select small { font-size: 9px; }
+.fleet-id { display: flex; align-items: baseline; gap: 8px; }
+.fleet-status { display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.fleet-status small { color: #6f8887; letter-spacing: .03em; }
 
 .timeline { position: absolute; left: 184px; right: 286px; bottom: 34px; height: 52px; background: #0b161a; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; padding: 0 14px; z-index: 4; }
 .icon-button { width: 28px; height: 28px; padding: 5px; border: 1px solid var(--line); border-radius: 6px; background: transparent; cursor: pointer; }

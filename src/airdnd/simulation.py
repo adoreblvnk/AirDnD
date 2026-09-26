@@ -260,7 +260,7 @@ def _policy_assign(
                     battery_cost=0.03,
                     coverage_loss_cost=0.02 if rank == home_rank else 0.42,
                     collision_cost=0.0,
-                    battery=0.85,
+                    battery=1.0,
                 )
             )
             track_distance = float(np.linalg.norm(local_position - own_position))
@@ -298,6 +298,8 @@ def _policy_assign(
                 {
                     "agent_id": agent_id,
                     "trigger": trigger,
+                    "battery": 1.0,
+                    "lifecycle_state": "on_station" if pending_reserve else "departing",
                 },
                 {"frame": len(decisions), "label": "reserve observer ready" if pending_reserve else f"{phase} mobilization"},
             )
@@ -380,6 +382,7 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
         if event.kind == "mobilized"
     }
     time_s = 0.0
+    battery_by_agent = {f"I{index:03d}": 1.0 for index in range(config.interceptors)}
     interceptor_velocities = np.zeros_like(interceptors)
     navigation_filters = [
         NavigationFilter(tuple(float(x) for x in position)) for position in interceptors
@@ -438,7 +441,7 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                 battery_cost=0.03,
                 coverage_loss_cost=0.02,
                 collision_cost=0.0,
-                battery=0.85,
+                battery=battery_by_agent[claimant_agent],
             )
         recovery_candidates = [candidate_by_agent[f"I{index:03d}"] for index in attempts[1:]]
         recovery_delays = claim_delay_s(recovery_candidates)
@@ -478,7 +481,12 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                             time_s,
                             "mobilized",
                             {"interceptor_id": agent_id, "phase": "reserve"},
-                            {"agent_id": agent_id, "trigger": "locally_observed_coverage_expiry"},
+                            {
+                                "agent_id": agent_id,
+                                "trigger": "locally_observed_coverage_expiry",
+                                "battery": battery_by_agent[agent_id],
+                                "lifecycle_state": "departing",
+                            },
                             {"frame": len(events), "label": "reserve mobilization"},
                         )
                     )
@@ -573,6 +581,7 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                     float(interceptors[interceptor_index, 2]),
                     0.1,
                 )
+                battery_by_agent[agent_id] = max(0.05, battery_by_agent[agent_id] - 0.01)
                 events.append(
                     EvidenceEvent(
                         time_s,
@@ -600,6 +609,8 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                                 if math.isfinite(safety.predicted_min_separation_m)
                                 else None
                             ),
+                            "battery": battery_by_agent[agent_id],
+                            "lifecycle_state": "on_station",
                         },
                         {"frame": len(events), "label": "actuated safe trajectory"},
                     )
@@ -620,12 +631,13 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                 time_s += 0.1
             assert guidance is not None and safety is not None
             preferred_velocity = guidance.preferred_velocity
+            battery_by_agent[agent_id] = max(0.05, battery_by_agent[agent_id] - 0.02)
             events.append(
                 EvidenceEvent(
                     time_s,
                     "engagement_attempt",
                     {"hostile_id": hostile_id, "interceptor_id": agent_id, "shared_failure_factor": round(float(shared_factors[h]), 8), "success_probability": round(probability, 8), "outcome": bool(outcome)},
-                    {"agent_id": agent_id, "local_track_id": _local_id(agent_id, hostile_id), "identity_state": "HOSTILE EVIDENCE", "preferred_velocity": list(preferred_velocity), "safe_velocity": list(safety.velocity), "safety_override": safety.override, "orca_plane_count": safety.orca_plane_count, "safety_filter": safety.backend_name},
+                    {"agent_id": agent_id, "local_track_id": _local_id(agent_id, hostile_id), "identity_state": "HOSTILE EVIDENCE", "preferred_velocity": list(preferred_velocity), "safe_velocity": list(safety.velocity), "safety_override": safety.override, "orca_plane_count": safety.orca_plane_count, "safety_filter": safety.backend_name, "battery": battery_by_agent[agent_id], "lifecycle_state": "returning"},
                     {"frame": len(events), "label": "simulated engagement"},
                 )
             )
@@ -647,13 +659,19 @@ def run_scenario(config: ScenarioConfig) -> SimulationResult:
                 break
         time_s += 0.1
     for interceptor_index in range(config.interceptors):
+        agent_id = f"I{interceptor_index:03d}"
         retained = float(np.linalg.norm(interceptors[interceptor_index] - initial_interceptor_positions[interceptor_index])) <= 0.25
         events.append(
             EvidenceEvent(
                 time_s,
                 "coverage_status",
-                {"interceptor_id": f"I{interceptor_index:03d}", "retained": retained},
-                {"agent_id": f"I{interceptor_index:03d}", "in_home_cell": retained},
+                {"interceptor_id": agent_id, "retained": retained},
+                {
+                    "agent_id": agent_id,
+                    "in_home_cell": retained,
+                    "battery": battery_by_agent[agent_id],
+                    "lifecycle_state": "docked",
+                },
                 {"frame": len(events), "label": "final coverage state"},
             )
         )

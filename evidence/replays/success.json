@@ -13,6 +13,8 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 1.0,
+        "lifecycle_state": "departing",
         "trigger": "preloaded_initial_screen"
       },
       "kind": "mobilized",
@@ -74,6 +76,8 @@
     {
       "agent_local": {
         "agent_id": "I001",
+        "battery": 1.0,
+        "lifecycle_state": "departing",
         "trigger": "preloaded_initial_screen"
       },
       "kind": "mobilized",
@@ -177,9 +181,11 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.99,
         "guidance_mode": "midcourse_basket",
         "identity_state": "UNKNOWN",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
@@ -225,9 +231,11 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.98,
         "guidance_mode": "midcourse_basket",
         "identity_state": "UNKNOWN",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
@@ -273,9 +281,11 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.97,
         "guidance_mode": "midcourse_basket",
         "identity_state": "UNKNOWN",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
@@ -321,7 +331,9 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.95,
         "identity_state": "HOSTILE EVIDENCE",
+        "lifecycle_state": "returning",
         "local_track_id": "I000-f736bc91",
         "orca_plane_count": 1,
         "preferred_velocity": [
@@ -387,7 +399,9 @@
     {
       "agent_local": {
         "agent_id": "I000",
-        "in_home_cell": false
+        "battery": 0.95,
+        "in_home_cell": false,
+        "lifecycle_state": "docked"
       },
       "kind": "coverage_status",
       "presentation": {
@@ -403,7 +417,9 @@
     {
       "agent_local": {
         "agent_id": "I001",
-        "in_home_cell": true
+        "battery": 1.0,
+        "in_home_cell": true,
+        "lifecycle_state": "docked"
       },
       "kind": "coverage_status",
       "presentation": {

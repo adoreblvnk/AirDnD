@@ -13,6 +13,8 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 1.0,
+        "lifecycle_state": "departing",
         "trigger": "preloaded_initial_screen"
       },
       "kind": "mobilized",
@@ -74,6 +76,8 @@
     {
       "agent_local": {
         "agent_id": "I001",
+        "battery": 1.0,
+        "lifecycle_state": "on_station",
         "trigger": "observed_friendly_coverage"
       },
       "kind": "observer_ready",
@@ -135,6 +139,8 @@
     {
       "agent_local": {
         "agent_id": "I002",
+        "battery": 1.0,
+        "lifecycle_state": "on_station",
         "trigger": "observed_friendly_coverage"
       },
       "kind": "observer_ready",
@@ -222,9 +228,11 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.99,
         "guidance_mode": "midcourse_basket",
         "identity_state": "HOSTILE EVIDENCE",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
@@ -270,9 +278,11 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.98,
         "guidance_mode": "midcourse_basket",
         "identity_state": "HOSTILE EVIDENCE",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
@@ -318,9 +328,11 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.97,
         "guidance_mode": "midcourse_basket",
         "identity_state": "HOSTILE EVIDENCE",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
@@ -366,7 +378,9 @@
     {
       "agent_local": {
         "agent_id": "I000",
+        "battery": 0.95,
         "identity_state": "HOSTILE EVIDENCE",
+        "lifecycle_state": "returning",
         "local_track_id": "I000-f736bc91",
         "orca_plane_count": 2,
         "preferred_velocity": [
@@ -413,6 +427,8 @@
     {
       "agent_local": {
         "agent_id": "I001",
+        "battery": 1.0,
+        "lifecycle_state": "departing",
         "trigger": "locally_observed_coverage_expiry"
       },
       "kind": "mobilized",
@@ -449,9 +465,11 @@
     {
       "agent_local": {
         "agent_id": "I001",
+        "battery": 0.99,
         "guidance_mode": "midcourse_basket",
         "identity_state": "HOSTILE EVIDENCE",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I001-971441bc",
         "navigation_position": [
           59.99787122681737,
@@ -497,9 +515,11 @@
     {
       "agent_local": {
         "agent_id": "I001",
+        "battery": 0.98,
         "guidance_mode": "midcourse_basket",
         "identity_state": "HOSTILE EVIDENCE",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I001-971441bc",
         "navigation_position": [
           59.991484907269474,
@@ -545,9 +565,11 @@
     {
       "agent_local": {
         "agent_id": "I001",
+        "battery": 0.97,
         "guidance_mode": "midcourse_basket",
         "identity_state": "HOSTILE EVIDENCE",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I001-971441bc",
         "navigation_position": [
           59.98084104135632,
@@ -593,7 +615,9 @@
     {
       "agent_local": {
         "agent_id": "I001",
+        "battery": 0.95,
         "identity_state": "HOSTILE EVIDENCE",
+        "lifecycle_state": "returning",
         "local_track_id": "I001-971441bc",
         "orca_plane_count": 2,
         "preferred_velocity": [
@@ -640,6 +664,8 @@
     {
       "agent_local": {
         "agent_id": "I002",
+        "battery": 1.0,
+        "lifecycle_state": "departing",
         "trigger": "locally_observed_coverage_expiry"
       },
       "kind": "mobilized",
@@ -676,9 +702,11 @@
     {
       "agent_local": {
         "agent_id": "I002",
+        "battery": 0.99,
         "guidance_mode": "midcourse_basket",
         "identity_state": "UNKNOWN",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I002-68c75e73",
         "navigation_position": [
           29.998889372404665,
@@ -724,9 +752,11 @@
     {
       "agent_local": {
         "agent_id": "I002",
+        "battery": 0.98,
         "guidance_mode": "midcourse_basket",
         "identity_state": "UNKNOWN",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I002-68c75e73",
         "navigation_position": [
           29.995557489432397,
@@ -772,9 +802,11 @@
     {
       "agent_local": {
         "agent_id": "I002",
+        "battery": 0.97,
         "guidance_mode": "midcourse_basket",
         "identity_state": "UNKNOWN",
         "iff_evaluated": true,
+        "lifecycle_state": "on_station",
         "local_track_id": "I002-68c75e73",
         "navigation_position": [
           29.990004350803794,
@@ -820,7 +852,9 @@
     {
       "agent_local": {
         "agent_id": "I002",
+        "battery": 0.95,
         "identity_state": "HOSTILE EVIDENCE",
+        "lifecycle_state": "returning",
         "local_track_id": "I002-68c75e73",
         "orca_plane_count": 2,
         "preferred_velocity": [
@@ -869,7 +903,9 @@
     {
       "agent_local": {
         "agent_id": "I000",
-        "in_home_cell": false
+        "battery": 0.95,
+        "in_home_cell": false,
+        "lifecycle_state": "docked"
       },
       "kind": "coverage_status",
       "presentation": {
@@ -885,7 +921,9 @@
     {
       "agent_local": {
         "agent_id": "I001",
-        "in_home_cell": false
+        "battery": 0.95,
+        "in_home_cell": false,
+        "lifecycle_state": "docked"
       },
       "kind": "coverage_status",
       "presentation": {
@@ -901,7 +939,9 @@
     {
       "agent_local": {
         "agent_id": "I002",
-        "in_home_cell": false
+        "battery": 0.95,
+        "in_home_cell": false,
+        "lifecycle_state": "docked"
       },
       "kind": "coverage_status",
       "presentation": {

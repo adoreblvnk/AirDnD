@@ -97,6 +97,8 @@ export interface LocalView {
   noisy_position?: number[];
   track_status?: string;
   visible_tracks?: Array<{ track_id: string; identity_state: string }>;
+  battery?: number;
+  lifecycle_state?: 'departing' | 'on_station' | 'returning' | 'docked';
 }
 
 export interface ReplayFrame {
@@ -278,6 +280,18 @@ export function replaySafety(replay: Replay, frame: number, agentId: string): Sa
     predictedMinSeparationM: local.predicted_min_separation_m,
     actualSeparationM,
   };
+}
+
+export interface FleetStatus {
+  battery?: number;
+  lifecycleState?: LocalView['lifecycle_state'];
+}
+
+export function replayFleetStatus(replay: Replay, frame: number, agentId: string): FleetStatus | undefined {
+  const source = replay.frames.filter((item) => item.frame <= frame && item.localViews[agentId]?.lifecycle_state).at(-1);
+  const local = source?.localViews[agentId];
+  if (!local) return undefined;
+  return { battery: local.battery, lifecycleState: local.lifecycle_state };
 }
 
 export interface SeparationSample {

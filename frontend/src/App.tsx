@@ -2,7 +2,7 @@ import { useEffect, useMemo, useReducer, useState } from 'react';
 import CesiumField from './CesiumField';
 import SideElevation from './SideElevation';
 import SafetyPanel from './SafetyPanel';
-import { loadReplay, initialState, reducer, replayAt, replayDecision, units, type Perspective, type Replay, type ReplayFrame } from './worldview';
+import { loadReplay, initialState, reducer, replayAt, replayDecision, replayFleetStatus, units, type Perspective, type Replay, type ReplayFrame } from './worldview';
 import './styles.css';
 
 const perspectives: Array<{ key: Perspective; label: string }> = [
@@ -11,6 +11,13 @@ const perspectives: Array<{ key: Perspective; label: string }> = [
   { key: 'INTERCEPTOR', label: 'INTERCEPTOR VIEW' },
   { key: 'OBSERVER', label: 'OBSERVER VIEW' },
 ];
+
+const fleetStateLabels: Record<'departing' | 'on_station' | 'returning' | 'docked', string> = {
+  departing: 'DEPARTING',
+  on_station: 'ON STATION',
+  returning: 'RETURNING',
+  docked: 'DOCKED',
+};
 
 function Icon({ name }: { name: 'play' | 'pause' | 'stepBack' | 'stepForward' }) {
   const paths = {
@@ -184,7 +191,13 @@ function Worldview() {
           <span>SELECT UNIT</span>
           {units.map((unit) => {
             const decision = replay ? replayDecision(replay, state.frame, unit.agentId) : undefined;
-            return <button key={unit.id} className={state.selected === unit.id ? 'selected' : ''} onClick={() => dispatch({ type: 'select', id: unit.id })}>{unit.id}<small>{decision?.decision ?? 'NO DATA'}</small></button>;
+            const status = replay ? replayFleetStatus(replay, state.frame, unit.agentId) : undefined;
+            return (
+              <button key={unit.id} className={state.selected === unit.id ? 'selected' : ''} onClick={() => dispatch({ type: 'select', id: unit.id })}>
+                <span className="fleet-id">{unit.id}<small>{decision?.decision ?? 'NO DATA'}</small></span>
+                <span className="fleet-status">{status?.lifecycleState ? <>{Math.round((status.battery ?? 0) * 100)}%<small>{fleetStateLabels[status.lifecycleState]}</small></> : <small>—</small>}</span>
+              </button>
+            );
           })}
         </div>
       </aside>

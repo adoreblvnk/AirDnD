@@ -213,6 +213,27 @@ def test_recovery_claims_carry_real_hysteresis_state_not_a_hardcoded_hard_releas
             assert claim.agent_local["hysteresis_track"] != claim.agent_local["local_track_id"]
 
 
+def test_fleet_lifecycle_progresses_docked_departing_on_station_returning_docked_and_battery_drains():
+    result = run_scenario(ScenarioConfig(1, 3, 5, "airdnd", reserve_ratio=0.67, force_first_miss=True))
+    by_agent: dict[str, list[tuple[float, str, float]]] = {}
+    for event in result.events:
+        local = event.agent_local
+        if "lifecycle_state" not in local:
+            continue
+        by_agent.setdefault(local["agent_id"], []).append((event.time_s, local["lifecycle_state"], local["battery"]))
+
+    assert by_agent
+    for agent_id, entries in by_agent.items():
+        entries.sort(key=lambda item: item[0])
+        states = [state for _time, state, _battery in entries]
+        assert set(states) <= {"departing", "on_station", "returning", "docked"}
+        assert states[-1] == "docked"
+        batteries = [battery for _time, _state, battery in entries]
+        assert all(0.05 <= value <= 1.0 for value in batteries)
+        # Battery must never increase - it only drains until the mission ends.
+        assert all(later <= earlier + 1e-9 for earlier, later in zip(batteries, batteries[1:]))
+
+
 def test_all_five_baselines_execute_and_teacher_uses_ortools_when_installed():
     assert BASELINES == ("naive_static", "independent_greedy", "deterministic_ablation", "airdnd", "ortools_teacher")
     results = [run_scenario(ScenarioConfig(10, 14, 3, method)) for method in BASELINES]
