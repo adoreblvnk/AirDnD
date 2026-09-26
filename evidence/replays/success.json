@@ -32,12 +32,12 @@
         "belief": {
           "action_success_probability": 0.7475882768630981,
           "confidence": 0.9281154274940491,
-          "friendly_coverage_probability": 0.5037055015563965,
+          "friendly_coverage_probability": 0.5037054419517517,
           "predicted_coverage_expiry": 12.329580307006836,
           "predicted_intercept_point": [
             -6.254049301147461,
             12.39200210571289,
-            13.095942497253418
+            13.095941543579102
           ],
           "predicted_intercept_time": 13.19830322265625,
           "target_leak_probability": 0.9995204210281372
@@ -47,7 +47,13 @@
         "hysteresis_track": "I000-f736bc91",
         "inference_executed": true,
         "local_track_id": "I000-f736bc91",
-        "utility": 0.2708460136241353
+        "utility": 0.27084605816249907,
+        "visible_tracks": [
+          {
+            "identity_state": "HOSTILE EVIDENCE",
+            "track_id": "I000-f736bc91"
+          }
+        ]
       },
       "kind": "policy_decision",
       "presentation": {
@@ -87,12 +93,12 @@
         "belief": {
           "action_success_probability": 0.7473353743553162,
           "confidence": 0.9276226758956909,
-          "friendly_coverage_probability": 0.5023825168609619,
+          "friendly_coverage_probability": 0.5023824572563171,
           "predicted_coverage_expiry": 12.308820724487305,
           "predicted_intercept_point": [
             -6.24995231628418,
             12.378194808959961,
-            13.077397346496582
+            13.077398300170898
           ],
           "predicted_intercept_time": 13.175704956054688,
           "target_leak_probability": 0.9995170831680298
@@ -102,7 +108,13 @@
         "hysteresis_track": "I001-971441bc",
         "inference_executed": true,
         "local_track_id": "I001-971441bc",
-        "utility": 0.2717075574840777
+        "utility": 0.2717076020072259,
+        "visible_tracks": [
+          {
+            "identity_state": "UNKNOWN",
+            "track_id": "I001-971441bc"
+          }
+        ]
       },
       "kind": "policy_decision",
       "presentation": {
@@ -166,7 +178,7 @@
       "agent_local": {
         "agent_id": "I000",
         "guidance_mode": "midcourse_basket",
-        "identity_state": "HOSTILE EVIDENCE",
+        "identity_state": "UNKNOWN",
         "iff_evaluated": true,
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
@@ -175,6 +187,7 @@
           249.99260904431344
         ],
         "navigation_updated": true,
+        "predicted_min_separation_m": 60.0,
         "preferred_velocity": [
           0.0,
           0.9966223065698996,
@@ -213,24 +226,25 @@
       "agent_local": {
         "agent_id": "I000",
         "guidance_mode": "midcourse_basket",
-        "identity_state": "HOSTILE EVIDENCE",
+        "identity_state": "UNKNOWN",
         "iff_evaluated": true,
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
-          0.19932446479797367,
-          249.97634894180297
+          0.19932447671890263,
+          249.976349160403
         ],
         "navigation_updated": true,
+        "predicted_min_separation_m": 60.000021148049335,
         "preferred_velocity": [
           0.0,
-          1.9932446305637392,
-          -0.16424345681371771
+          1.9932448308135036,
+          -0.1642410265633741
         ],
         "safe_velocity": [
           0.0,
-          1.9932446479797363,
-          -0.16424345970153809
+          1.9932448863983154,
+          -0.1642410308122635
         ],
         "safety_filter": "snape/RVO2-3D",
         "safety_override": false
@@ -248,11 +262,11 @@
           249.991788
         ],
         "interceptor_id": "I000",
-        "nearest_friendly_separation_m": 60.00074999533895,
+        "nearest_friendly_separation_m": 60.00074999535802,
         "to_position": [
           0.0,
           0.298987,
-          249.975363
+          249.975364
         ]
       }
     },
@@ -260,24 +274,25 @@
       "agent_local": {
         "agent_id": "I000",
         "guidance_mode": "midcourse_basket",
-        "identity_state": "HOSTILE EVIDENCE",
+        "identity_state": "UNKNOWN",
         "iff_evaluated": true,
         "local_track_id": "I000-f736bc91",
         "navigation_position": [
           0.0,
-          0.4484800457954407,
-          249.9517452715397
+          0.44848010540008554,
+          249.95174624330403
         ],
         "navigation_updated": true,
+        "predicted_min_separation_m": 60.00033574580423,
         "preferred_velocity": [
           0.0,
-          2.989866954557871,
-          -0.2463651866127378
+          2.989867642130117,
+          -0.2463573066505515
         ],
         "safe_velocity": [
           0.0,
-          2.9898669719696045,
-          -0.24636518955230713
+          2.989867687225342,
+          -0.24635730683803558
         ],
         "safety_filter": "snape/RVO2-3D",
         "safety_override": false
@@ -292,14 +307,14 @@
         "from_position": [
           0.0,
           0.298987,
-          249.975363
+          249.975364
         ],
         "interceptor_id": "I000",
-        "nearest_friendly_separation_m": 60.002999925109314,
+        "nearest_friendly_separation_m": 60.00299992521296,
         "to_position": [
           0.0,
           0.597973,
-          249.950727
+          249.950728
         ]
       }
     },
@@ -311,13 +326,13 @@
         "orca_plane_count": 1,
         "preferred_velocity": [
           0.0,
-          2.989866954557871,
-          -0.2463651866127378
+          2.989867642130117,
+          -0.2463573066505515
         ],
         "safe_velocity": [
           0.0,
-          2.9898669719696045,
-          -0.24636518955230713
+          2.989867687225342,
+          -0.24635730683803558
         ],
         "safety_filter": "snape/RVO2-3D",
         "safety_override": false

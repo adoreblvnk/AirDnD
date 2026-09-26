@@ -96,6 +96,7 @@ export interface LocalView {
   claim_delay_s?: number;
   noisy_position?: number[];
   track_status?: string;
+  visible_tracks?: Array<{ track_id: string; identity_state: string }>;
 }
 
 export interface ReplayFrame {
@@ -226,6 +227,7 @@ export interface ReplayDecision {
   preferredVelocity?: number[];
   safeVelocity?: number[];
   safetyOverride?: boolean;
+  visibleTracks?: Array<{ track_id: string; identity_state: string }>;
 }
 
 export function replayDecision(replay: Replay, frame: number, agentId: string): ReplayDecision | undefined {
@@ -247,6 +249,7 @@ export function replayDecision(replay: Replay, frame: number, agentId: string): 
     preferredVelocity: local.preferred_velocity,
     safeVelocity: local.safe_velocity,
     safetyOverride: local.safety_override,
+    visibleTracks: local.visible_tracks,
   };
 }
 

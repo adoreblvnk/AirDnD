@@ -111,6 +111,19 @@ def test_local_policy_payloads_contain_only_noisy_local_track_geometry():
         assert event.agent_local["belief"]["predicted_intercept_point"] != event.truth["target_position"]
 
 
+def test_policy_decision_lists_every_visible_track_not_only_the_chosen_one():
+    result = run_scenario(ScenarioConfig(3, 4, 29, "deterministic_ablation", reserve_ratio=0.0))
+    decisions = [event for event in result.events if event.kind == "policy_decision"]
+    assert decisions
+    for event in decisions:
+        visible = event.agent_local["visible_tracks"]
+        assert visible
+        track_ids = {entry["track_id"] for entry in visible}
+        assert event.agent_local["local_track_id"] in track_ids
+        for entry in visible:
+            assert entry["identity_state"] in {"CONFIRMED FRIENDLY", "FRIENDLY LINEAGE", "UNKNOWN", "HOSTILE EVIDENCE"}
+
+
 def test_airdnd_runtime_logs_actual_multihead_inference_outputs():
     result = run_scenario(ScenarioConfig(8, 12, 19, "airdnd"))
     decisions = [event for event in result.events if event.kind == "policy_decision"]

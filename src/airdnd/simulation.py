@@ -243,7 +243,11 @@ def _policy_assign(
                 _handwritten_belief(history, local_position)
                 for history, (_hostile_index, _track, local_position) in zip(histories, local_targets)
             ]
+        # Separately seeded per interceptor so the ledger's identity classification never
+        # perturbs LocalTracker's own noise draws (which reuse config.seed + interceptor_index).
+        ledger_rng = np.random.default_rng(config.seed + 50_000 + interceptor_index)
         candidates: list[Candidate] = []
+        visible_tracks: list[dict[str, str]] = []
         for rank, ((hostile_index, track, local_position), belief) in enumerate(zip(local_targets, beliefs)):
             candidates.append(
                 Candidate(
@@ -259,6 +263,15 @@ def _policy_assign(
                     battery=0.85,
                 )
             )
+            track_distance = float(np.linalg.norm(local_position - own_position))
+            identification_probability = float(np.clip(1.0 - track_distance / 3_000.0, 0.05, 0.97))
+            track_identity = IFFMachine().update(
+                lineage=False,
+                beacon_valid=False,
+                beacon_bound=False,
+                hostile_evidence=bool(ledger_rng.random() < identification_probability),
+            )
+            visible_tracks.append({"track_id": track.local_id, "identity_state": track_identity.value})
         selected = choose_candidate(candidates)
         selected_index = candidates.index(selected)
         selected_hostile, _selected_track, selected_local_position = local_targets[selected_index]
@@ -306,6 +319,7 @@ def _policy_assign(
                     "belief": asdict(selected.belief),
                     "utility": mission_utility(selected),
                     "hysteresis_track": hysteresis.current_track,
+                    "visible_tracks": visible_tracks,
                     "downstream_policy": "mission_utility+deterministic_mobilization_v1",
                 },
                 {"frame": len(decisions), "label": "local policy decision"},

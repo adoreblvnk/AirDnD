@@ -162,8 +162,15 @@ function Worldview() {
           <p data-testid="rvo-trace">v<sub>pref</sub> {selected.preferredVelocity?.join('/') ?? 'not recorded'} → v<sub>safe</sub> {selected.safeVelocity?.join('/') ?? 'not recorded'}</p>
         </div>
         <div className="candidate-head"><span>LOCAL CANDIDATES</span><span>UTILITY</span></div>
-        <button className="candidate selected"><span>{selected.local}<small>{selected.identity}</small></span><b>{selected.utility?.toFixed(2) ?? '—'}</b></button>
-        <button className="candidate" disabled><span>REPLAY-RECORDED CANDIDATES ONLY<small>NO AUTHORED ESTIMATE</small></span><b>—</b></button>
+        {selected.visibleTracks && selected.visibleTracks.length > 0 ? selected.visibleTracks.map((track) => (
+          <button key={track.track_id} className={track.track_id === selected.local ? 'candidate selected' : 'candidate'} disabled={track.track_id !== selected.local}>
+            <span>{track.track_id}<small>{track.identity_state}</small></span>
+            <b>{track.track_id === selected.local ? selected.utility?.toFixed(2) ?? '—' : '—'}</b>
+          </button>
+        )) : <>
+          <button className="candidate selected"><span>{selected.local}<small>{selected.identity}</small></span><b>{selected.utility?.toFixed(2) ?? '—'}</b></button>
+          <button className="candidate" disabled><span>REPLAY-RECORDED CANDIDATES ONLY<small>NO AUTHORED ESTIMATE</small></span><b>—</b></button>
+        </>}
         <button className="disclosure" aria-expanded={state.detailOpen} onClick={() => dispatch({ type: 'toggle-detail' })}>DECISION TRACE <span>{state.detailOpen ? 'CLOSE' : 'OPEN'}</span></button>
         {state.detailOpen && <div className="trace">
           <dl><dt>P(leak)</dt><dd>{selected.leak ?? '—'}{selected.leak === undefined ? '' : '%'}</dd><dt>P(success)</dt><dd>{selected.success ?? '—'}{selected.success === undefined ? '' : '%'}</dd><dt>P(covered)</dt><dd>{selected.covered ?? '—'}{selected.covered === undefined ? '' : '%'}</dd><dt>confidence</dt><dd>{selected.confidence ?? '—'}{selected.confidence === undefined ? '' : '%'}</dd></dl>
