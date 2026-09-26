@@ -19,6 +19,29 @@ const fleetStateLabels: Record<'departing' | 'on_station' | 'returning' | 'docke
   docked: 'DOCKED',
 };
 
+function identityModifier(state: string): string {
+  if (state === 'CONFIRMED FRIENDLY') return 'confirmed';
+  if (state === 'FRIENDLY LINEAGE') return 'lineage';
+  if (state === 'HOSTILE EVIDENCE') return 'hostile';
+  return 'unknown';
+}
+
+function IdentityBadge({ state }: { state: string }) {
+  return <small className={`identity-badge ${identityModifier(state)}`}>{state}</small>;
+}
+
+function BatteryBar({ level }: { level: number }) {
+  const fillWidth = Math.max(0, Math.min(1, level)) * 12;
+  const tier = level > 0.5 ? 'high' : level > 0.2 ? 'mid' : 'low';
+  return (
+    <svg className={`battery-bar ${tier}`} viewBox="0 0 18 9" aria-hidden="true">
+      <rect x="0.5" y="0.5" width="15" height="8" rx="1.5" className="battery-shell" />
+      <rect x="16" y="3" width="1.5" height="3" className="battery-nub" />
+      <rect x="2" y="2" width={fillWidth} height="5" className="battery-fill" />
+    </svg>
+  );
+}
+
 function Icon({ name }: { name: 'play' | 'pause' | 'stepBack' | 'stepForward' }) {
   const paths = {
     play: <path d="M5 3.5 16 10 5 16.5z" />,
@@ -171,11 +194,11 @@ function Worldview() {
         <div className="candidate-head"><span>LOCAL CANDIDATES</span><span>UTILITY</span></div>
         {selected.visibleTracks && selected.visibleTracks.length > 0 ? selected.visibleTracks.map((track) => (
           <button key={track.track_id} className={track.track_id === selected.local ? 'candidate selected' : 'candidate'} disabled={track.track_id !== selected.local}>
-            <span>{track.track_id}<small>{track.identity_state}</small></span>
+            <span>{track.track_id}<IdentityBadge state={track.identity_state} /></span>
             <b>{track.track_id === selected.local ? selected.utility?.toFixed(2) ?? '—' : '—'}</b>
           </button>
         )) : <>
-          <button className="candidate selected"><span>{selected.local}<small>{selected.identity}</small></span><b>{selected.utility?.toFixed(2) ?? '—'}</b></button>
+          <button className="candidate selected"><span>{selected.local}<IdentityBadge state={selected.identity} /></span><b>{selected.utility?.toFixed(2) ?? '—'}</b></button>
           <button className="candidate" disabled><span>REPLAY-RECORDED CANDIDATES ONLY<small>NO AUTHORED ESTIMATE</small></span><b>—</b></button>
         </>}
         <button className="disclosure" aria-expanded={state.detailOpen} onClick={() => dispatch({ type: 'toggle-detail' })}>DECISION TRACE <span>{state.detailOpen ? 'CLOSE' : 'OPEN'}</span></button>
@@ -195,7 +218,7 @@ function Worldview() {
             return (
               <button key={unit.id} className={state.selected === unit.id ? 'selected' : ''} onClick={() => dispatch({ type: 'select', id: unit.id })}>
                 <span className="fleet-id">{unit.id}<small>{decision?.decision ?? 'NO DATA'}</small></span>
-                <span className="fleet-status">{status?.lifecycleState ? <>{Math.round((status.battery ?? 0) * 100)}%<small>{fleetStateLabels[status.lifecycleState]}</small></> : <small>—</small>}</span>
+                <span className="fleet-status">{status?.lifecycleState ? <><BatteryBar level={status.battery ?? 0} />{Math.round((status.battery ?? 0) * 100)}%<small>{fleetStateLabels[status.lifecycleState]}</small></> : <small>—</small>}</span>
               </button>
             );
           })}
@@ -203,7 +226,7 @@ function Worldview() {
       </aside>
 
       <section className="timeline" aria-label="Replay timeline">
-        <button className="icon-button" aria-label={state.playing ? 'Pause replay' : 'Play replay'} onClick={() => dispatch({ type: 'toggle-play' })}><Icon name={state.playing ? 'pause' : 'play'} /></button>
+        <button className="icon-button primary" aria-label={state.playing ? 'Pause replay' : 'Play replay'} onClick={() => dispatch({ type: 'toggle-play' })}><Icon name={state.playing ? 'pause' : 'play'} /></button>
         <button className="icon-button" aria-label="Previous frame" onClick={() => dispatch({ type: 'step', delta: -1 })}><Icon name="stepBack" /></button>
         <button className="icon-button" aria-label="Next frame" onClick={() => dispatch({ type: 'step', delta: 1 })}><Icon name="stepForward" /></button>
         <strong>{time}</strong>
