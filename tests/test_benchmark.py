@@ -29,6 +29,7 @@ def test_evidence_generation_writes_replay_raw_reports_models_and_valid_manifest
         "raw/benchmark.jsonl",
         "raw/benchmark.csv",
         "reports/benchmark.json",
+        "replays/full_demo.json",
         "replays/success.json",
         "replays/miss_recovery.json",
         "models/belief.pt",

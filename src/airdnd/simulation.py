@@ -860,8 +860,9 @@ def _run_continuous_scenario(config: ScenarioConfig) -> SimulationResult:
         for tick in range(3):
             h_pos += h_vel * dt
             time_s += dt
-        obs_idx = attempts[1]
-        obs_agent = f"I{obs_idx:03d}"
+        ready_observers = sorted(pending_observers - {lead_agent})
+        obs_agent = ready_observers[0]
+        obs_idx = int(obs_agent[1:])
         events.append(
             EvidenceEvent(
                 round(time_s, 2),
@@ -937,8 +938,7 @@ def _run_continuous_scenario(config: ScenarioConfig) -> SimulationResult:
         )
         time_s += dt
         events.append(EvidenceEvent(round(time_s, 2), "neutralized", {"hostile_id": hostile_id, "interceptor_id": obs_agent}, {"agent_id": obs_agent, "track_status": "removed"}, {"frame": len(events), "label": "NEUTRALIZED"}))
-        for cancelled_index in attempts[2:]:
-            cancelled_agent = f"I{cancelled_index:03d}"
+        for cancelled_agent in ready_observers[1:]:
             events.append(
                 EvidenceEvent(
                     round(time_s, 2),
@@ -1010,6 +1010,50 @@ def _run_continuous_scenario(config: ScenarioConfig) -> SimulationResult:
         events.append(EvidenceEvent(round(time_s, 2), "neutralized", {"hostile_id": hostile_id, "interceptor_id": lead_agent}, {"agent_id": lead_agent, "track_status": "removed"}, {"frame": len(events), "label": "NEUTRALIZED"}))
 
     time_s += dt
+    active_agents = {
+        str(event.truth["interceptor_id"])
+        for event in events
+        if event.kind == "trajectory_step"
+    }
+    hold_times = [round(value, 2) for value in np.arange(0.0, time_s, 1.0)]
+    if not hold_times or hold_times[-1] != round(time_s, 2):
+        hold_times.append(round(time_s, 2))
+    for interceptor_index, position in enumerate(initial_interceptor_positions):
+        agent_id = f"I{interceptor_index:03d}"
+        if agent_id in active_agents:
+            continue
+        nearest_sep = min(
+            float(np.linalg.norm(position - other_position))
+            for other_index, other_position in enumerate(initial_interceptor_positions)
+            if other_index != interceptor_index
+        )
+        held_position = position.round(6).tolist()
+        for hold_time in hold_times:
+            events.append(
+                EvidenceEvent(
+                    hold_time,
+                    "trajectory_step",
+                    {
+                        "interceptor_id": agent_id,
+                        "from_position": held_position,
+                        "to_position": held_position,
+                        "nearest_friendly_separation_m": nearest_sep,
+                    },
+                    {
+                        "agent_id": agent_id,
+                        "identity_state": "CONFIRMED FRIENDLY",
+                        "iff_evaluated": True,
+                        "navigation_updated": True,
+                        "navigation_position": held_position,
+                        "guidance_mode": "coverage_hold",
+                        "preferred_velocity": [0.0, 0.0, 0.0],
+                        "safe_velocity": [0.0, 0.0, 0.0],
+                        "safety_override": False,
+                        "safety_filter": "snape/RVO2-3D",
+                    },
+                    {"frame": 0, "label": "coverage hold"},
+                )
+            )
     for interceptor_index in range(config.interceptors):
         retained = float(np.linalg.norm(interceptors[interceptor_index] - initial_interceptor_positions[interceptor_index])) <= 0.25
         events.append(
@@ -1030,6 +1074,9 @@ def _run_continuous_scenario(config: ScenarioConfig) -> SimulationResult:
             {"frame": len(events), "label": "simulation completed"},
         )
     )
+    events.sort(key=lambda event: event.time_s)
+    for frame, event in enumerate(events):
+        event.presentation["frame"] = frame
     kinds = [e.kind for e in events]
     trajectory_separations = [
         float(event.truth["nearest_friendly_separation_m"])
@@ -1063,11 +1110,32 @@ def _run_continuous_scenario(config: ScenarioConfig) -> SimulationResult:
     return SimulationResult(config, metrics, tuple(events), teacher_backend)
 
 
+def _run_full_demo() -> SimulationResult:
+    """Run the fixed-seed physical mission from launch through impact or DR-RTH."""
+    from .mission import run_full_mission
+
+    mission = run_full_mission(2030)
+    config = ScenarioConfig(
+        hostiles=20,
+        interceptors=24,
+        seed=2030,
+        method="airdnd",
+        reserve_ratio=0.25,
+        minimum_separation_m=8.0,
+        continuous_flight=True,
+    )
+    metrics = SimulationMetrics(**mission.metrics)
+    events = tuple(EvidenceEvent(**event) for event in mission.events)
+    return SimulationResult(config, metrics, events)
+
+
 def run_fixed_replay(kind: str) -> SimulationResult:
+    if kind in ("full_demo", "full-demo"):
+        return _run_full_demo()
     if kind == "success":
-        return run_scenario(ScenarioConfig(1, 2, 101, "airdnd", reserve_ratio=0.0, force_first_success=True, continuous_flight=True))
+        return run_scenario(ScenarioConfig(1, 24, 101, "airdnd", reserve_ratio=0.0, force_first_success=True, continuous_flight=True))
     if kind in ("miss_recovery", "miss-recovery"):
-        return run_scenario(ScenarioConfig(1, 3, 1, "airdnd", reserve_ratio=0.67, force_first_miss=True, continuous_flight=True))
+        return run_scenario(ScenarioConfig(1, 24, 1, "airdnd", reserve_ratio=0.67, force_first_miss=True, continuous_flight=True))
     if kind == "naive":
-        return run_scenario(ScenarioConfig(1, 4, 43, "independent_greedy", reserve_ratio=0.0, continuous_flight=True))
-    raise ValueError("fixed replay must be success, miss_recovery, or naive")
+        return run_scenario(ScenarioConfig(1, 24, 43, "independent_greedy", reserve_ratio=0.0, continuous_flight=True))
+    raise ValueError("fixed replay must be full_demo, success, miss_recovery, or naive")

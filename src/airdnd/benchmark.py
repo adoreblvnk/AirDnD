@@ -220,6 +220,7 @@ def generate_evidence(output_dir: Path, seeds: Iterable[int] = range(30), hostil
         elapsed_ms = (time.perf_counter_ns() - started) / 1_000_000
         scaling.append({"hostiles": count, "completed": scale_result.metrics.completed, "entity_drops": scale_result.metrics.entity_drops, "elapsed_ms": elapsed_ms, "per_entity_ms": elapsed_ms / count})
     _write_json(output_dir / "reports/scaling.json", {"evidence_class": "simulation_evidence", "results": scaling})
+    _write_json(output_dir / "replays/full_demo.json", run_fixed_replay("full_demo").to_dict())
     _write_json(output_dir / "replays/success.json", run_fixed_replay("success").to_dict())
     _write_json(output_dir / "replays/miss_recovery.json", run_fixed_replay("miss_recovery").to_dict())
     _write_json(output_dir / "replays/naive.json", run_fixed_replay("naive").to_dict())

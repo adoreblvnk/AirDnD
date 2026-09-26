@@ -60,6 +60,50 @@ def receding_horizon_guidance(
     return GuidanceCommand(feasible, limiting, intercept_basket, _tuple3(preferred), mode)
 
 
+def proportional_navigation_guidance(
+    position: Vector3,
+    velocity: Vector3,
+    target_position: Vector3,
+    target_velocity: Vector3,
+    limits: GuidanceLimits,
+    dt: float,
+    navigation_gain: float = 3.5,
+) -> GuidanceCommand:
+    """Three-dimensional true proportional navigation with acceleration limiting."""
+    position_array = np.asarray(position, dtype=float)
+    velocity_array = np.asarray(velocity, dtype=float)
+    target_position_array = np.asarray(target_position, dtype=float)
+    target_velocity_array = np.asarray(target_velocity, dtype=float)
+    line_of_sight = target_position_array - position_array
+    range_squared = float(line_of_sight @ line_of_sight)
+    if range_squared <= 1e-6:
+        return GuidanceCommand(True, None, target_position, _tuple3(target_velocity_array), "terminal_proportional_navigation")
+    range_m = math.sqrt(range_squared)
+    relative_velocity = target_velocity_array - velocity_array
+    line_of_sight_unit = line_of_sight / range_m
+    closing_speed = max(0.0, -float(relative_velocity @ line_of_sight_unit))
+    line_of_sight_rate = np.cross(line_of_sight, relative_velocity) / range_squared
+    lateral_acceleration = navigation_gain * closing_speed * np.cross(line_of_sight_rate, line_of_sight_unit)
+    acceleration_norm = float(np.linalg.norm(lateral_acceleration))
+    if acceleration_norm > limits.max_accel:
+        lateral_acceleration *= limits.max_accel / acceleration_norm
+    commanded = velocity_array + lateral_acceleration * dt
+    along_los = limits.max_speed
+    desired = target_velocity_array + line_of_sight_unit * along_los
+    commanded = 0.65 * commanded + 0.35 * desired
+    speed = float(np.linalg.norm(commanded))
+    if speed > limits.max_speed:
+        commanded *= limits.max_speed / speed
+    commanded[2] = np.clip(commanded[2], -limits.max_climb_rate, limits.max_climb_rate)
+    return GuidanceCommand(
+        True,
+        None,
+        target_position,
+        _tuple3(commanded),
+        "terminal_proportional_navigation",
+    )
+
+
 @dataclass(frozen=True)
 class SafetyFilterResult:
     velocity: Vector3

@@ -189,9 +189,11 @@ def test_all_five_baselines_execute_and_teacher_uses_ortools_when_installed():
     assert results[-1].teacher_backend == "ortools"
 
 
-def test_fixed_success_and_miss_recovery_replays_are_simulator_outputs():
+def test_fixed_replays_are_simulator_outputs_with_twenty_four_visible_drones():
     success = run_fixed_replay("success")
     miss = run_fixed_replay("miss_recovery")
+    naive = run_fixed_replay("naive")
+    replays = (success, miss, naive)
     ready_agents = {
         event.truth["interceptor_id"]
         for event in miss.events
@@ -202,9 +204,89 @@ def test_fixed_success_and_miss_recovery_replays_are_simulator_outputs():
         for event in miss.events
         if event.kind == "observer_claim"
     }
+    expected_agents = {f"I{index:03d}" for index in range(24)}
+    assert all(replay.config.interceptors == 24 for replay in replays)
+    assert all(
+        {
+            event.truth["interceptor_id"]
+            for event in replay.events
+            if event.kind == "trajectory_step"
+        }
+        == expected_agents
+        for replay in replays
+    )
     assert any(event.kind == "neutralized" for event in success.events)
-    assert ready_agents == {"I001", "I002"}
+    assert len(ready_agents) >= 2
     assert claim_agents <= ready_agents
     assert any(event.kind == "coverage_expired" for event in miss.events)
     assert any(event.kind == "observer_claim" for event in miss.events)
     assert success.config.seed != miss.config.seed
+
+
+def test_full_demo_covers_deployment_twenty_hostiles_impacts_and_return_to_base():
+    replay = run_fixed_replay("full_demo")
+    kinds = [event.kind for event in replay.events]
+    hostile_tracks = {
+        event.truth["hostile_id"]
+        for event in replay.events
+        if event.kind == "hostile_trajectory_step"
+    }
+    interceptor_tracks = {
+        event.truth["interceptor_id"]
+        for event in replay.events
+        if event.kind == "trajectory_step"
+    }
+
+    assert replay.config.hostiles == 20
+    assert replay.config.interceptors == 24
+    assert 120.0 <= replay.events[-1].time_s <= 150.0
+    assert hostile_tracks == {f"H{index:03d}" for index in range(20)}
+    assert interceptor_tracks == {f"I{index:03d}" for index in range(24)}
+    assert kinds.count("launched") == 24
+    assert kinds.count("formation_occupied") == 24
+    assert kinds.count("neutralized") == 20
+    assert kinds.count("expended") == 1
+    assert kinds.count("return_to_base") == 3
+    assert kinds.count("landed") == 3
+    assert replay.metrics.neutralized == 20
+    assert replay.metrics.leaked == 0
+    assert replay.metrics.completed
+    assert replay.metrics.recovery_count == 1
+    assert replay.metrics.minimum_separation_m >= replay.config.minimum_separation_m
+    assert replay.metrics.friendly_collisions == 0
+    assert replay.metrics.rf_ground_messages == 0
+    assert replay.metrics.rf_interdrone_messages == 0
+    assert replay.metrics.target_assignment_messages == 0
+    failed_attempts = [
+        event for event in replay.events
+        if event.kind == "engagement_attempt" and not event.truth["outcome"]
+    ]
+    assert len(failed_attempts) == 1
+    assert "coverage_expired" in kinds
+    assert "observer_claim" in kinds
+    terminal_steps = [
+        event for event in replay.events
+        if event.kind == "trajectory_step"
+        and event.agent_local["guidance_mode"] == "terminal_proportional_navigation"
+    ]
+    assert terminal_steps
+    assert all("estimated_position" in event.agent_local for event in terminal_steps)
+    return_steps = [
+        event for event in replay.events
+        if event.kind == "trajectory_step"
+        and event.agent_local["guidance_mode"] == "reverse_ins_waypoint"
+    ]
+    assert return_steps
+    waypoint_altitudes = {
+        event.agent_local["recovery_waypoint"][2]
+        for event in return_steps
+        if event.agent_local["recovery_waypoint"] is not None
+    }
+    assert waypoint_altitudes
+    assert all(altitude == 4.0 or altitude % 50.0 == 0.0 for altitude in waypoint_altitudes)
+    returning = {event.truth["interceptor_id"] for event in replay.events if event.kind == "return_to_base"}
+    landed = {event.truth["interceptor_id"] for event in replay.events if event.kind == "landed"}
+    assert landed == returning
+    repeated = run_fixed_replay("full_demo")
+    assert repeated.metrics == replay.metrics
+    assert repeated.events == replay.events
