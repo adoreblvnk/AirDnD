@@ -19,3 +19,4 @@ evidence/training/
 .impeccable/review/
 .playwright-cli/
 *.egg-info/
+.claude/

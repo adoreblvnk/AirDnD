@@ -376,7 +376,13 @@ def export_onnx_int8(model: BeliefModel, onnx_path: Path, quantized_path: Path) 
     )
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
-    quantize_dynamic(onnx_path, quantized_path, weight_type=QuantType.QInt8)
+    quantize_dynamic(
+        onnx_path,
+        quantized_path,
+        weight_type=QuantType.QInt8,
+        per_channel=True,
+        reduce_range=True,
+    )
     import onnxruntime as ort
 
     verification_batch = np.linspace(
