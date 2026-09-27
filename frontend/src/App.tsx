@@ -36,6 +36,31 @@ const SCENARIOS: Array<{ id: ScenarioId; label: string }> = [
 ];
 
 const PLAYBACK_RATES = [0.5, 1, 2, 4] as const;
+const FOCUSED_VIEWS = new Set<ViewName>(["Identity", "Safety", "Fleet"]);
+
+function storyWindow(view: ViewName, model: ReplayModel) {
+  if (view === "Identity") {
+    const firstTrack = model.data.events.find((event) => event.kind === "trajectory_step" && event.agent_local?.target_id);
+    const start = Math.max(0, (firstTrack?.time_s ?? 32) - 0.4);
+    return { start, end: Math.min(model.duration, start + 10), label: "Local identity acquisition" };
+  }
+  if (view === "Safety") {
+    const overrides = model.data.events.filter((event) => event.kind === "trajectory_step" && event.agent_local?.safety_override);
+    const closest = overrides.reduce<ReplayEvent | null>((selected, event) => {
+      if (!selected) return event;
+      return (event.agent_local?.predicted_min_separation_m ?? Infinity)
+        < (selected.agent_local?.predicted_min_separation_m ?? Infinity) ? event : selected;
+    }, null);
+    const start = Math.max(0, (closest?.time_s ?? 49) - 2);
+    return { start, end: Math.min(model.duration, start + 7), label: "RVO2-3D conflict resolution" };
+  }
+  if (view === "Fleet") {
+    const ingress = model.data.events.find((event) => event.kind === "threat_ingress")?.time_s ?? 32;
+    const firstImpact = model.data.events.find((event) => event.kind === "engagement_attempt")?.time_s ?? ingress + 20;
+    return { start: Math.max(0, ingress - 3), end: Math.min(model.duration, firstImpact + 8), label: "Fleet deployment and engagement" };
+  }
+  return null;
+}
 
 export default function App() {
   const [view, setView] = useState<ViewName>("Scene");
@@ -58,11 +83,22 @@ export default function App() {
   const model = models[scenarioId] ?? null;
   const duration = model?.duration ?? 1;
   const playbackEnabled = true;
+  const focusedWindow = useMemo(() => model ? storyWindow(view, model) : null, [model, view]);
 
   useEffect(() => {
     setTime(0);
     setPlaying(false);
   }, [scenarioId]);
+  useEffect(() => {
+    if (!FOCUSED_VIEWS.has(view)) return;
+    if (scenarioId !== "full_demo") {
+      setScenarioId("full_demo");
+      return;
+    }
+    if (!focusedWindow) return;
+    setTime(focusedWindow.start);
+    setPlaying(true);
+  }, [focusedWindow, scenarioId, view]);
 
   useEffect(() => {
     if (!playing || !model) return;
@@ -71,6 +107,10 @@ export default function App() {
       previousTick.current = now;
       setTime((current) => {
         const next = current + ((now - last) / 1000) * playbackRate;
+        if (focusedWindow && next >= focusedWindow.end) {
+          previousTick.current = now;
+          return focusedWindow.start;
+        }
         if (next >= model.duration) {
           setPlaying(false);
           previousTick.current = null;
@@ -86,7 +126,7 @@ export default function App() {
       animationFrame.current = null;
       previousTick.current = null;
     };
-  }, [playing, model, playbackRate]);
+  }, [focusedWindow, playing, model, playbackRate]);
 
   useEffect(() => {
     if (!playbackEnabled) setPlaying(false);
@@ -116,12 +156,12 @@ export default function App() {
         step(1);
       } else if (event.code === "Home") {
         setPlaying(false);
-        setTime(0);
+        setTime(focusedWindow?.start ?? 0);
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [step, playbackEnabled]);
+  }, [focusedWindow, step, playbackEnabled]);
 
   const currentEvent = model ? activeEvent(model, time) : null;
 
@@ -131,6 +171,8 @@ export default function App() {
         <div className="brand"><Layers3 aria-hidden="true" /><span>AirDnD</span></div>
         {view === "Replay" ? (
           <div className="comparison-label">Fixed comparison · Contact / Miss</div>
+        ) : focusedWindow ? (
+          <div className="comparison-label">{focusedWindow.label} · auto-focused loop</div>
         ) : (
           <div className="scenario-tabs" aria-label="Replay scenario">
             {SCENARIOS.map(({ id, label }) => (
@@ -171,10 +213,10 @@ export default function App() {
         playing={playing}
         enabled={playbackEnabled}
         playbackRate={playbackRate}
-        currentLabel={currentEvent?.presentation?.label ?? "Replay ready"}
+        currentLabel={focusedWindow ? `${focusedWindow.label} · ${currentEvent?.presentation?.label ?? "recorded evidence"}` : currentEvent?.presentation?.label ?? "Replay ready"}
         onToggle={() => setPlaying((current) => !current)}
         onStep={step}
-        onReset={() => { setPlaying(false); setTime(0); }}
+        onReset={() => { setPlaying(false); setTime(focusedWindow?.start ?? 0); }}
         onSeek={setTime}
         onRateChange={setPlaybackRate}
       />
@@ -283,22 +325,25 @@ function ReplayView({ models, time }: { models: Partial<Record<ScenarioId, Repla
 
 function IdentityView({ model, time }: { model: ReplayModel; time: number }) {
   const event = latestTargetTelemetry(model, time);
-  const agent = event?.agent_local?.agent_id ?? "—";
-  const target = event?.agent_local?.target_id ?? "—";
+  const agent = event?.agent_local?.agent_id ?? "Awaiting observer";
+  const target = event?.agent_local?.target_id ?? "Unclassified track";
+  const classified = Boolean(event);
+  const selectedState = classified ? "Hostile evidence" : "Unknown";
   return (
     <div className="identity-layout">
       <div className="identity-canvas"><CesiumScene model={model} time={time} mode="identity" truthOverlay={false} /></div>
       <aside className="identity-inspector">
+        <PanelHeading title="Local identity evidence" meta={`Recorded ${formatTime(time)} · no evaluator truth`} />
         <div className="compare-head"><strong>{agent}</strong><strong>{target}</strong></div>
-        <CompareRow label="Observation" left="Launch lineage" right="Ingress track" />
-        <CompareRow label="Identity signal" left="Authenticated NIR" right="No friendly code" />
-        <CompareRow label="Status" left="Confirmed friendly" right="Hostile evidence" emphasis />
-        <p>Beacon loss alone never implies hostile.</p>
+        <CompareRow label="Observation" left="Launch lineage" right={classified ? "Ingress track" : "Sensor track pending"} />
+        <CompareRow label="Identity signal" left="Authenticated NIR" right={classified ? "No friendly code" : "No determination"} />
+        <CompareRow label="Status" left="Confirmed friendly" right={selectedState} emphasis={classified} />
+        <p>Beacon loss alone never implies hostile. Classification is local and evidence-led.</p>
       </aside>
       <div className="identity-states" aria-label="Identity state machine">
-        {["Confirmed", "Lineage", "Unknown", "Hostile evidence"].map((item) => <span key={item} className={`${item.toLowerCase().replace(" ", "-")} ${item === "Hostile evidence" ? "selected" : ""}`}>{item}</span>)}
+        {["Confirmed", "Lineage", "Unknown", "Hostile evidence"].map((item) => <span key={item} className={`${item.toLowerCase().replace(" ", "-")} ${item === selectedState ? "selected" : ""}`}>{item}</span>)}
       </div>
-      <div className="identity-events"><span className="done">Lineage</span><span className="done">NIR verified</span><span className="current">Classified</span><em>Local state · no RF exchange</em></div>
+      <div className="identity-events"><span className="done">Lineage retained</span><span className={classified ? "done" : ""}>NIR evaluated</span><span className={classified ? "current" : ""}>{classified ? "Hostile classified" : "Awaiting evidence"}</span><em>Local state · no RF exchange</em></div>
     </div>
   );
 }
@@ -311,6 +356,7 @@ function SafetyView({ model, time }: { model: ReplayModel; time: number }) {
     <div className="safety-layout">
       <div className="safety-canvas"><CesiumScene model={model} time={time} mode="safety" truthOverlay={false} /></div>
       <aside className="inspector safety-inspector">
+        <PanelHeading title="Collision-avoidance evidence" meta={`Recorded ${formatTime(time)}`} tag={override ? "OVERRIDE ACTIVE" : "MONITORING"} />
         <DefinitionRows rows={[
           ["Unit", event?.agent_local?.agent_id ?? "—"],
           ["Filter", model.data.metrics.safety_filter],
@@ -341,16 +387,27 @@ function FleetView({ model, time }: { model: ReplayModel; time: number }) {
       battery: event?.agent_local?.battery ?? event?.truth.battery ?? 1
     };
   });
+  const count = (...states: string[]) => rows.filter((row) => states.includes(row.state.toLowerCase())).length;
+  const stages = [
+    { label: "Docked", count: count("docked") },
+    { label: "Deploying", count: count("deploying") },
+    { label: "On station", count: count("on station", "reserve") },
+    { label: "Engaging", count: count("intercepting", "recovery intercept") },
+    { label: "Returning", count: count("returning") },
+    { label: "Landed", count: count("landed") }
+  ];
+  const engaged = count("intercepting", "recovery intercept");
+  const retained = rows.length - count("expended");
   return (
     <div className="fleet-layout">
       <div className="fleet-canvas"><CesiumScene model={model} time={time} mode="fleet" truthOverlay={false} /></div>
       <aside className="inspector fleet-inspector">
-        <PanelHeading title="Fleet" meta={`${rows.filter((row) => row.state !== "Expended").length} retained`} />
+        <PanelHeading title="Fleet lifecycle" meta={`${retained} retained · ${engaged} engaging · ${formatTime(time)}`} />
         <table><thead><tr><th>Unit</th><th>State</th><th>Battery</th></tr></thead><tbody>
           {rows.map((row) => <FleetRow key={row.unit} {...row} />)}
         </tbody></table>
       </aside>
-      <div className="lifecycle"><span>Docked</span><span className="active">Deploying</span><span className="active">On station</span><span className="warning">Returning</span><span>Landed</span></div>
+      <div className="lifecycle" aria-label="Current fleet lifecycle counts">{stages.map((stage) => <span key={stage.label} className={stage.count > 0 ? stage.label === "Returning" ? "warning" : "active" : ""}>{stage.label}<b>{stage.count}</b></span>)}</div>
     </div>
   );
 }

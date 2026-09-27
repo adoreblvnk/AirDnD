@@ -119,8 +119,8 @@ function WorldLoader({ mode, onTileState }: Pick<CesiumSceneProps, "mode" | "onT
       contact: { position: [-300, -550, 400], heading: 10, pitch: -20 },
       miss: { position: [300, -550, 400], heading: -10, pitch: -20 },
       uncertainty: { position: [0, -250, 420], heading: 180, pitch: -22 },
-      identity: { position: [0, -300, 210], heading: 0, pitch: -4 },
-      safety: { position: [-350, -50, 300], heading: 16, pitch: -18 },
+      identity: { position: [0, -420, 250], heading: 180, pitch: -8 },
+      safety: { position: [-100, -560, 330], heading: 180, pitch: -18 },
       fleet: { position: [-580, -600, 600], heading: 28, pitch: -27 }
     };
     const target = destinations[mode ?? "overview"];
