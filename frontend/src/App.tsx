@@ -1,510 +1,693 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
-import CesiumField from './CesiumField';
-import SideElevation from './SideElevation';
-import SafetyPanel from './SafetyPanel';
-import { DRONE_STATUS_LABELS, describeReplayError, groupRoster, loadReplay, initialState, reducer, replayAt, replayDecision, replayFleetStatus, replaySwarmAt, rosterCallsign, type Perspective, type Replay } from './worldview';
-import { SCENARIOS, scenarioInfo } from './scenarios';
-import './styles.css';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Aperture,
+  Box,
+  ChevronFirst,
+  ChevronLast,
+  CircleDotDashed,
+  Grid3X3,
+  Layers3,
+  Pause,
+  Play,
+  RotateCcw,
+  Shield,
+  UserRoundSearch
+} from "lucide-react";
+import { CesiumScene } from "./components/CesiumScene";
+import { activeEvent, agentTelemetryAt, closestSafetyTelemetry, frameForTime, latestAgentTelemetry, latestTargetTelemetry, loadReplay, type ReplayEvent, type ReplayModel } from "./replay";
 
-const perspectives: Array<{ key: Perspective; label: string }> = [
-  { key: 'OVERVIEW', label: 'BATTLESPACE' },
-  { key: 'HOSTILE', label: 'HOSTILE VIEW' },
-  { key: 'INTERCEPTOR', label: 'INTERCEPTOR VIEW' },
-  { key: 'OBSERVER', label: 'OBSERVER VIEW' },
+type ViewName = "Scene" | "Cameras" | "Replay" | "Identity" | "Safety" | "Fleet";
+type ScenarioId = "full_demo" | "success" | "miss_recovery" | "naive";
+
+const VIEW_ICONS = {
+  Scene: Box,
+  Cameras: Aperture,
+  Replay: CircleDotDashed,
+  Identity: UserRoundSearch,
+  Safety: Shield,
+  Fleet: Grid3X3
+} satisfies Record<ViewName, typeof Box>;
+
+const SCENARIOS: Array<{ id: ScenarioId; label: string }> = [
+  { id: "full_demo", label: "Full mission" },
+  { id: "success", label: "Contact" },
+  { id: "miss_recovery", label: "Recovery" },
+  { id: "naive", label: "Naive" }
 ];
 
-const fleetStateLabels: Record<'departing' | 'on_station' | 'returning' | 'docked', string> = {
-  departing: 'DEPARTING',
-  on_station: 'ON STATION',
-  returning: 'RETURNING',
-  docked: 'DOCKED',
-};
-
-function identityModifier(state: string): string {
-  if (state === 'CONFIRMED FRIENDLY') return 'confirmed';
-  if (state === 'FRIENDLY LINEAGE') return 'lineage';
-  if (state === 'HOSTILE EVIDENCE') return 'hostile';
-  return 'unknown';
+const PLAYBACK_RATES = [0.5, 1, 2, 4] as const;
+const FOCUSED_VIEWS = new Set<ViewName>(["Identity", "Safety", "Fleet"]);
+interface DemoChapter {
+  id: string;
+  label: string;
+  time: number;
+  title: string;
+  explanation: string;
+  tone: "neutral" | "friendly" | "warning" | "critical";
 }
 
-function IdentityBadge({ state }: { state: string }) {
-  return <small className={`identity-badge ${identityModifier(state)}`}>{state}</small>;
+const DEMO_CHAPTERS: DemoChapter[] = [
+  { id: "deploy", label: "Deploy", time: 0, title: "Coastal deployment", explanation: "24 interceptors launch from Singapore and climb through pre-cleared lanes. GNSS and every RF link are already denied.", tone: "friendly" },
+  { id: "grid", label: "Grid", time: 31.1, title: "Vertical picket established", explanation: "18 active cells hold the high ground while six reserve aircraft preserve depth for follow-on threats.", tone: "friendly" },
+  { id: "raid", label: "Sea raid", time: 32, title: "Twenty threats enter from sea", explanation: "Each interceptor builds its own noisy local tracks. There is no shared radar picture or assignment table.", tone: "warning" },
+  { id: "decide", label: "Decide", time: 45, title: "Coordination without messages", explanation: "Observed motion raises local P(covered), so nearby aircraft hold or choose uncovered threats instead of duplicating pursuit.", tone: "neutral" },
+  { id: "intercept", label: "Intercept", time: 75, title: "Terminal intercepts begin", explanation: "Lead aircraft dive toward predicted intercept baskets. RVO2-3D remains between guidance and actuation.", tone: "friendly" },
+  { id: "miss", label: "Miss", time: 78.9, title: "Lead miss — H001 survives", explanation: "I012 is expended, but H001 continues toward the protected corridor. No handoff message is sent.", tone: "critical" },
+  { id: "recover", label: "Recover", time: 83.2, title: "Private coverage expires", explanation: "The expected intercept window closes. I014 independently sees H001 survive and claims recovery after its local delay.", tone: "warning" },
+  { id: "close", label: "Re-engage", time: 99, title: "Observer recovery closes in", explanation: "I014 replans toward the surviving threat while other aircraft suppress duplicate claims by observing its motion.", tone: "friendly" },
+  { id: "return", label: "Return", time: 101.8, title: "Threat neutralized · return", explanation: "I014 neutralizes H001. Remaining aircraft reverse their recorded MEMS-INS routes to the Singapore coast.", tone: "friendly" }
+];
+
+function chapterAt(time: number) {
+  for (let index = DEMO_CHAPTERS.length - 1; index >= 0; index -= 1) {
+    if (time >= DEMO_CHAPTERS[index].time) return DEMO_CHAPTERS[index];
+  }
+  return DEMO_CHAPTERS[0];
 }
 
-function BatteryBar({ level }: { level: number }) {
-  const fillWidth = Math.max(0, Math.min(1, level)) * 12;
-  const tier = level > 0.5 ? 'high' : level > 0.2 ? 'mid' : 'low';
-  return (
-    <svg className={`battery-bar ${tier}`} viewBox="0 0 18 9" aria-hidden="true">
-      <rect x="0.5" y="0.5" width="15" height="8" rx="1.5" className="battery-shell" />
-      <rect x="16" y="3" width="1.5" height="3" className="battery-nub" />
-      <rect x="2" y="2" width={fillWidth} height="5" className="battery-fill" />
-    </svg>
-  );
+function storyWindow(view: ViewName, model: ReplayModel) {
+  if (view === "Identity") {
+    const firstTrack = model.data.events.find((event) => event.kind === "trajectory_step" && event.agent_local?.target_id);
+    const start = Math.max(0, (firstTrack?.time_s ?? 32) - 0.4);
+    return { start, end: Math.min(model.duration, start + 10), label: "Local identity acquisition" };
+  }
+  if (view === "Safety") {
+    const overrides = model.data.events.filter((event) => event.kind === "trajectory_step" && event.agent_local?.safety_override);
+    const closest = overrides.reduce<ReplayEvent | null>((selected, event) => {
+      if (!selected) return event;
+      return (event.agent_local?.predicted_min_separation_m ?? Infinity)
+        < (selected.agent_local?.predicted_min_separation_m ?? Infinity) ? event : selected;
+    }, null);
+    const start = Math.max(0, (closest?.time_s ?? 49) - 2);
+    return { start, end: Math.min(model.duration, start + 7), label: "RVO2-3D conflict resolution" };
+  }
+  if (view === "Fleet") {
+    const ingress = model.data.events.find((event) => event.kind === "threat_ingress")?.time_s ?? 32;
+    const firstImpact = model.data.events.find((event) => event.kind === "engagement_attempt")?.time_s ?? ingress + 20;
+    return { start: Math.max(0, ingress - 3), end: Math.min(model.duration, firstImpact + 8), label: "Fleet deployment and engagement" };
+  }
+  return null;
 }
 
-function Icon({ name }: { name: 'play' | 'pause' | 'stepBack' | 'stepForward' | 'reset' }) {
-  const paths = {
-    reset: <><path d="M4 4v12" /><path d="m16 4-9 6 9 6z" /><path d="M10 4v12" /></>,
-    play: <path d="M5 3.5 16 10 5 16.5z" />,
-    pause: <><path d="M5 4h3v12H5z" /><path d="M12 4h3v12h-3z" /></>,
-    stepBack: <><path d="M5 4v12" /><path d="m15 4-8 6 8 6z" /></>,
-    stepForward: <><path d="M15 4v12" /><path d="m5 4 8 6-8 6z" /></>,
-  };
-  return <svg viewBox="0 0 20 20" aria-hidden="true">{paths[name]}</svg>;
-}
-
-function Worldview() {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const [replay, setReplay] = useState<Replay | null>(null);
-  const [replayError, setReplayError] = useState('');
-  const [headingRad, setHeadingRad] = useState(0);
-  const roster = replay?.roster ?? [];
-  const platoons = useMemo(() => groupRoster(replay?.roster ?? []), [replay]);
-  const selectedId = roster.some((drone) => drone.id === state.selected) ? state.selected : roster[0]?.id ?? state.selected;
-  const frame = replay ? replayAt(replay, state.frame) : undefined;
-  const swarm = replay ? replaySwarmAt(replay, state.frame) : undefined;
-  const generatedDecision = replay ? replayDecision(replay, state.frame, selectedId) : undefined;
-  const selectedDrone = swarm?.drones[selectedId];
-  const selected = generatedDecision ?? { id: rosterCallsign(replay, selectedId), agentId: selectedId, local: 'NO LOCAL TRACK', decision: selectedDrone ? DRONE_STATUS_LABELS[selectedDrone.status] : 'AWAIT REPLAY', identity: 'UNKNOWN' };
-  const moment = frame?.event ?? { event: 'GRID SET' as const, description: replayError || 'Loading generated replay' };
-  const hostileCount = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status !== 'pending').length : 0;
-  const neutralizedCount = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status === 'neutralized').length : 0;
-  const sectionCount = platoons.reduce((sum, platoon) => sum + platoon.sections.length, 0);
-  const friendlyCount = swarm ? Object.keys(swarm.friendlies).length : 0;
-  const pendingCount = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status === 'pending').length : 0;
-  const activeScenario = scenarioInfo(state.scenario);
+export default function App() {
+  const [view, setView] = useState<ViewName>("Scene");
+  const [scenarioId, setScenarioId] = useState<ScenarioId>("full_demo");
+  const [models, setModels] = useState<Partial<Record<ScenarioId, ReplayModel>>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [time, setTime] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState<number>(1);
+  const [truthOverlay, setTruthOverlay] = useState(true);
+  const [guided, setGuided] = useState(true);
+  const animationFrame = useRef<number | null>(null);
+  const previousTick = useRef<number | null>(null);
 
   useEffect(() => {
-    document.body.classList.add('worldview-active');
+    Promise.all(SCENARIOS.map(({ id }) => loadReplay(id).then((model) => [id, model] as const)))
+      .then((entries) => setModels(Object.fromEntries(entries)))
+      .catch((error: Error) => setLoadError(error.message));
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    setReplay(null);
-    setReplayError('');
-    loadReplay(state.scenario)
-      .then((loaded) => {
-        if (!active) return;
-        setReplay(loaded);
-        dispatch({ type: 'replay-loaded', maxFrame: loaded.frames.at(-1)?.frame ?? 0 });
-      })
-      .catch((error: unknown) => { if (active) setReplayError(describeReplayError(error)); });
-    return () => { active = false; };
-  }, [state.scenario]);
+  const model = models[scenarioId] ?? null;
+  const duration = model?.duration ?? 1;
+  const playbackEnabled = true;
+  const focusedWindow = useMemo(() => model ? storyWindow(view, model) : null, [model, view]);
+  const activeChapter = chapterAt(time);
+  const selectChapter = useCallback((chapter: DemoChapter) => {
+    setScenarioId("full_demo");
+    setView("Scene");
+    setGuided(true);
+    setTime(chapter.time);
+    setPlaying(true);
+  }, []);
+  const toggleGuidedDemo = useCallback(() => {
+    if (guided) {
+      setGuided(false);
+      setPlaying(false);
+      return;
+    }
+    setScenarioId("full_demo");
+    setView("Scene");
+    setTime(0);
+    setPlaybackRate(1);
+    setTruthOverlay(true);
+    setGuided(true);
+    setPlaying(true);
+  }, [guided]);
 
   useEffect(() => {
-    if (!state.playing) return;
-    const timer = window.setInterval(() => dispatch({ type: 'tick' }), 85);
-    return () => window.clearInterval(timer);
-  }, [state.playing]);
+    setTime(0);
+    setPlaying(false);
+  }, [scenarioId]);
+  useEffect(() => {
+    if (!FOCUSED_VIEWS.has(view)) return;
+    if (scenarioId !== "full_demo") {
+      setScenarioId("full_demo");
+      return;
+    }
+    if (!focusedWindow) return;
+    setTime(focusedWindow.start);
+    setPlaying(true);
+  }, [focusedWindow, scenarioId, view]);
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement) return;
-      if (event.code === 'Space') { event.preventDefault(); dispatch({ type: 'toggle-play' }); }
-      if (event.key === 'ArrowLeft') dispatch({ type: 'step', delta: -1 });
-      if (event.key === 'ArrowRight') dispatch({ type: 'step', delta: 1 });
-      if (event.key.toLowerCase() === 't') dispatch({ type: 'toggle-truth' });
+    if (!playing || !model) return;
+    const tick = (now: number) => {
+      const last = previousTick.current ?? now;
+      previousTick.current = now;
+      setTime((current) => {
+        const next = current + ((now - last) / 1000) * playbackRate;
+        if (focusedWindow && next >= focusedWindow.end) {
+          previousTick.current = now;
+          return focusedWindow.start;
+        }
+        if (next >= model.duration) {
+          setPlaying(false);
+          previousTick.current = null;
+          return model.duration;
+        }
+        return next;
+      });
+      animationFrame.current = requestAnimationFrame(tick);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+    animationFrame.current = requestAnimationFrame(tick);
+    return () => {
+      if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
+      animationFrame.current = null;
+      previousTick.current = null;
+    };
+  }, [focusedWindow, playing, model, playbackRate]);
 
-  const time = useMemo(() => {
-    const seconds = frame?.time_s ?? 0;
-    return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
-  }, [frame]);
+  useEffect(() => {
+    if (!playbackEnabled) setPlaying(false);
+  }, [playbackEnabled]);
 
-  const compareIds = state.pinned.length ? state.pinned : roster.slice(0, 3).map((drone) => drone.id);
+  const step = useCallback((direction: -1 | 1) => {
+    if (!model) return;
+    setPlaying(false);
+    setTime((current) => {
+      const frameIndex = frameForTime(model, current);
+      const nextIndex = Math.max(0, Math.min(model.frameTimes.length - 1, frameIndex + direction));
+      return model.frameTimes[nextIndex];
+    });
+  }, [model]);
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (!playbackEnabled || (event.target as HTMLElement).matches("input, button, select, textarea")) return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        setPlaying((current) => !current);
+      } else if (event.code === "ArrowLeft") {
+        event.preventDefault();
+        step(-1);
+      } else if (event.code === "ArrowRight") {
+        event.preventDefault();
+        step(1);
+      } else if (event.code === "Home") {
+        setPlaying(false);
+        setTime(focusedWindow?.start ?? 0);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [focusedWindow, step, playbackEnabled]);
+
+  const currentEvent = model ? activeEvent(model, time) : null;
 
   return (
-    <main className="worldview">
-      <div className="map-field" aria-label="Live 3D AirDnD battlespace">
-        <CesiumField
-          frame={frame}
-          swarm={swarm}
-          roster={replay?.roster}
-          cells={replay?.cells}
-          replayKey={replay?.scenarioId}
-          playing={state.playing}
-          follow={state.follow}
-          onHeadingChange={setHeadingRad}
-          perspective={state.perspective}
-          sector={state.view === 'sector'}
-          groundTruth={state.groundTruth}
-          selected={selectedId}
-          onSelect={(id) => dispatch({ type: 'select', id })}
-        />
-        <div className="provenance" data-testid="provenance">RECORDED SIMULATOR EVENTS · NOT FLIGHT DATA</div>
-        <ul className="map-legend" aria-label="Map legend">
-          <li><i className="legend-friendly" aria-hidden="true" />Friendly</li>
-          <li><i className="legend-opposing" aria-hidden="true" />Opposing</li>
-          <li><i className="legend-unknown" aria-hidden="true" />Friendly transit · identity varies</li>
-          <li><i className="legend-vacant" aria-hidden="true" />Vacant cell</li>
-        </ul>
-        <div className="plot-title" aria-hidden="true"><span>MARINA BAY / 01°17′N</span><span>103°51′E / ALT 0—600M</span></div>
-        {swarm && <SideElevation swarm={swarm} selected={selectedId} headingRad={headingRad} />}
-        <div className={`event-marker ${moment.event === 'MISS' ? 'alert' : ''}`}>
-          <strong>{moment.event}</strong><span>{moment.description}</span>
-        </div>
-      </div>
-
-      <aside className="command-rail" aria-label="Worldview controls">
-        <a className="wordmark" href="/" aria-label="AirDnD worldview"><b>AIR</b><span>DND</span></a>
-        <nav aria-label="Primary">
-          <a className="active" href="/">WORLDVIEW</a>
-          <a data-testid="nav-evidence" href="/evidence">EVIDENCE</a>
-          <a data-testid="nav-training" href="/training">TRAINING</a>
-        </nav>
-        <div className="rail-group">
-          <span className="rail-label">SCOPE</span>
-          <div className="switch-line">
-            <button data-testid="view-overview" className={state.view === 'overview' ? 'selected' : ''} onClick={() => dispatch({ type: 'view', view: 'overview' })}>OVERVIEW</button>
-            <button data-testid="view-sector" className={state.view === 'sector' ? 'selected' : ''} onClick={() => dispatch({ type: 'view', view: 'sector' })}>SECTOR</button>
-          </div>
-          <button data-testid="camera-follow" className={`follow-toggle${state.follow ? ' selected' : ''}`} aria-pressed={state.follow} onClick={() => dispatch({ type: 'toggle-follow' })}>{state.follow ? 'CAMERA · FOLLOW ACTION' : 'CAMERA · FREE LOOK'}</button>
-        </div>
-        <div className="rail-group perspective-list">
-          <span className="rail-label">PERSPECTIVE</span>
-          {perspectives.map((item) => (
-            <button data-testid={`perspective-${item.key.toLowerCase()}`} key={item.key} className={state.perspective === item.key ? 'selected' : ''} onClick={() => dispatch({ type: 'perspective', perspective: item.key })}>{item.label}</button>
-          ))}
-        </div>
-        <div className="rail-group scenarios">
-          <span className="rail-label">SCENARIO</span>
-          {SCENARIOS.map((scenario, index) => (
-            <button key={scenario.id} data-testid={`replay-${scenario.id}`} className={state.scenario === scenario.id ? 'selected' : ''} aria-pressed={state.scenario === scenario.id} title={scenario.summary} onClick={() => dispatch({ type: 'scenario', scenario: scenario.id })}>
-              <span className="scenario-index">{index + 1}</span>{scenario.title.toUpperCase()}
-            </button>
-          ))}
-          {activeScenario && <p className="scenario-brief" data-testid="scenario-brief"><b>{activeScenario.force}</b>{activeScenario.summary}</p>}
-        </div>
-        <div className="rail-group order-of-battle" data-testid="order-of-battle">
-          <span className="rail-label">ORDER OF BATTLE</span>
-          <p>{roster.length} FRIENDLY · {platoons.length} PLT · {sectionCount} SEC</p>
-          <p>{hostileCount} HOSTILE · {neutralizedCount} DOWN{pendingCount ? ` · ${pendingCount} INBOUND LATER` : ''}</p>
-          {friendlyCount > 0 && <p>{friendlyCount} FRIENDLY TRANSIT · NOT ENGAGED</p>}
-        </div>
-        <label className="truth-toggle">
-          <input type="checkbox" checked={state.groundTruth} onChange={() => dispatch({ type: 'toggle-truth' })} />
-          <span>EVALUATOR TRUTH</span><small>explicit overlay</small>
-        </label>
-        <p className="local-note">LOCAL VIEW MASK ACTIVE<br />No shared target IDs</p>
-      </aside>
-
-      <aside data-testid="decision-inspector" className="decision-panel" aria-label="Selected decision detail">
-        <header>
-          <div><span>SELECTED UNIT</span><strong>{selected.id}</strong></div>
-          <button onClick={() => dispatch({ type: 'pin', id: selectedId })} disabled={state.pinned.length === 3 || state.pinned.includes(selectedId)}>PIN {state.pinned.length}/3</button>
-        </header>
-        <div className="decision-primary">
-          <span>ACTION</span><strong>{selectedDrone ? DRONE_STATUS_LABELS[selectedDrone.status] : selected.decision}{selectedDrone?.target ? ` · ${selectedDrone.target}` : ''}</strong>
-          <p>Generated local decision from immutable replay frame F{String(frame?.frame ?? 0).padStart(3, '0')}.</p>
-          <p data-testid="rvo-trace">v<sub>pref</sub> {selected.preferredVelocity?.join('/') ?? 'not recorded'} → v<sub>safe</sub> {selected.safeVelocity?.join('/') ?? 'not recorded'}</p>
-        </div>
-        <div className="candidate-head"><span>LOCAL CANDIDATES</span><span>UTILITY</span></div>
-        {selected.visibleTracks && selected.visibleTracks.length > 0 ? selected.visibleTracks.slice(0, 6).map((track) => (
-          <button key={track.track_id} className={track.track_id === selected.local ? 'candidate selected' : 'candidate'} disabled={track.track_id !== selected.local}>
-            <span>{track.track_id}<IdentityBadge state={track.identity_state} /></span>
-            <b>{track.track_id === selected.local ? selected.utility?.toFixed(2) ?? '—' : '—'}</b>
-          </button>
-        )) : <>
-          <button className="candidate selected"><span>{selected.local}<IdentityBadge state={selected.identity} /></span><b>{selected.utility?.toFixed(2) ?? '—'}</b></button>
-          <button className="candidate" disabled><span>REPLAY-RECORDED CANDIDATES ONLY<small>NO AUTHORED ESTIMATE</small></span><b>—</b></button>
-        </>}
-        <button className="disclosure" aria-expanded={state.detailOpen} onClick={() => dispatch({ type: 'toggle-detail' })}>DECISION TRACE <span>{state.detailOpen ? 'CLOSE' : 'OPEN'}</span></button>
-        {state.detailOpen && <div className="trace">
-          <dl><dt>P(leak)</dt><dd>{selected.leak ?? '—'}{selected.leak === undefined ? '' : '%'}</dd><dt>P(success)</dt><dd>{selected.success ?? '—'}{selected.success === undefined ? '' : '%'}</dd><dt>P(covered)</dt><dd>{selected.covered ?? '—'}{selected.covered === undefined ? '' : '%'}</dd><dt>confidence</dt><dd>{selected.confidence ?? '—'}{selected.confidence === undefined ? '' : '%'}</dd></dl>
-          <hr />
-          <p>Source {replay?.source ?? 'unavailable'} · frame {frame?.frame ?? '—'} · {replay?.evidenceClass ?? 'pending'}</p>
-          <p>v<sub>pref</sub> [{selected.preferredVelocity?.join(', ') ?? 'not recorded'}] · v<sub>safe</sub> [{selected.safeVelocity?.join(', ') ?? 'not recorded'}]</p>
-          <p>Safety override: {selected.safetyOverride === undefined ? 'NOT RECORDED' : selected.safetyOverride ? 'ACTIVE' : 'CLEAR'}</p>
-        </div>}
-        <SafetyPanel replay={replay} frame={state.frame} agentId={selectedId} />
-        {selectedDrone && replay && (() => {
-          const status = replayFleetStatus(replay, state.frame, selectedId);
-          return status?.lifecycleState ? <p className="fleet-status selected-status"><BatteryBar level={status.battery ?? 0} />{Math.round((status.battery ?? 0) * 100)}%<small>{fleetStateLabels[status.lifecycleState]}</small></p> : null;
-        })()}
-        <div className="fleet-select" data-testid="fleet-select">
-          <span>SELECT UNIT · {roster.length} DRONES</span>
-          {platoons.map((platoon) => (
-            <div className="platoon" key={platoon.id}>
-              <b className="platoon-id">{platoon.id === '—' ? 'UNITS' : `${platoon.id} PLATOON`}</b>
-              <div className="sections">
-                {platoon.sections.map((section) => (
-                  <div className="section" key={section.id}>
-                    <small>{section.id === '—' ? '' : section.id}</small>
-                    <div className="section-grid">
-                      {section.drones.map((drone) => {
-                        const status = swarm?.drones[drone.id]?.status;
-                        return (
-                          <button
-                            key={drone.id}
-                            data-testid={`unit-${drone.id}`}
-                            className={`drone-chip ${status ?? 'unknown'}${selectedId === drone.id ? ' selected' : ''}`}
-                            title={`${drone.callsign} · ${status ? DRONE_STATUS_LABELS[status] : 'NO DATA'}`}
-                            aria-label={`${drone.callsign} ${status ? DRONE_STATUS_LABELS[status] : 'NO DATA'}`}
-                            aria-pressed={selectedId === drone.id}
-                            onClick={() => dispatch({ type: 'select', id: drone.id })}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <section className="timeline" aria-label="Replay timeline">
-        <button className="icon-button" aria-label="Reset replay" data-testid="replay-reset" onClick={() => dispatch({ type: 'reset' })}><Icon name="reset" /></button>
-        <button className="icon-button primary" aria-label={state.playing ? 'Pause replay' : 'Play replay'} onClick={() => dispatch({ type: 'toggle-play' })}><Icon name={state.playing ? 'pause' : 'play'} /></button>
-        <button className="icon-button" aria-label="Previous frame" onClick={() => dispatch({ type: 'step', delta: -1 })}><Icon name="stepBack" /></button>
-        <button className="icon-button" aria-label="Next frame" onClick={() => dispatch({ type: 'step', delta: 1 })}><Icon name="stepForward" /></button>
-        <strong>{time}</strong>
-        <div className="timeline-track">
-          <input aria-label="Replay frame" type="range" min="0" max={state.maxFrame} value={state.frame} onChange={(event) => dispatch({ type: 'scrub', frame: Number(event.target.value) })} />
-          <div className="timeline-markers" aria-label="Key events">
-            {(replay?.markers ?? []).map((marker) => (
-              <button
-                key={`${marker.event}-${marker.frame}`}
-                className={`timeline-marker ${marker.event.toLowerCase().replaceAll(' ', '-')}`}
-                style={{ left: `${(marker.frame / Math.max(1, state.maxFrame)) * 100}%` }}
-                aria-label={`Jump to ${marker.event} at frame ${marker.frame}`}
-                title={`${marker.event} · ${marker.label}`}
-                onClick={() => dispatch({ type: 'scrub', frame: marker.frame })}
-              />
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="brand"><Layers3 aria-hidden="true" /><span>AirDnD</span></div>
+        {guided ? (
+          <DemoChapterNav active={activeChapter} onSelect={selectChapter} />
+        ) : view === "Replay" ? (
+          <div className="comparison-label">Fixed comparison · Contact / Miss</div>
+        ) : focusedWindow ? (
+          <div className="comparison-label">{focusedWindow.label} · auto-focused loop</div>
+        ) : (
+          <div className="scenario-tabs" aria-label="Replay scenario">
+            {SCENARIOS.map(({ id, label }) => (
+              <button key={id} className={scenarioId === id ? "active" : ""} aria-pressed={scenarioId === id} onClick={() => { setGuided(false); setScenarioId(id); }}>{label}</button>
             ))}
           </div>
-        </div>
-        <span>F{String(state.frame).padStart(3, '0')} / F{String(state.maxFrame).padStart(3, '0')}</span>
-        <button className="compare-trigger" onClick={() => dispatch({ type: 'toggle-compare' })}>PINNED COMPARISON {state.pinned.length}/3</button>
+        )}
+        <button type="button" className={`demo-mode ${guided ? "active" : ""}`} aria-pressed={guided} onClick={toggleGuidedDemo}><span className="mode-dot" />{guided ? "Exit guide" : "Run 2:29 demo"}</button>
+      </header>
+
+      <nav className="left-rail" aria-label="Primary views">
+        {(Object.keys(VIEW_ICONS) as ViewName[]).map((name) => {
+          const Icon = VIEW_ICONS[name];
+          return (
+            <button key={name} aria-label={name} className={view === name ? "active" : ""} onClick={() => { setView(name); if (name !== "Scene") setGuided(false); }} aria-current={view === name ? "page" : undefined}>
+              <Icon aria-hidden="true" /><span>{name}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <section className="workspace" aria-live="polite">
+        {loadError ? <LoadError message={loadError} /> : !model ? <Loading /> : (
+          <ViewRouter
+            view={view}
+            model={model}
+            models={models}
+            time={time}
+            truthOverlay={truthOverlay}
+            setTruthOverlay={setTruthOverlay}
+            guided={guided}
+            chapter={activeChapter}
+            onChapterSelect={selectChapter}
+          />
+        )}
       </section>
 
-      <section data-testid="blackout-status" className="blackout" aria-label="Radio blackout status">
-        <span><b>RF GROUND LINKS</b><strong>0</strong></span>
-        <span><b>RF INTER-DRONE</b><strong>0</strong></span>
-        <span><b>TARGET ASSIGNMENTS</b><strong>0</strong></span>
-        <span className="nir"><b>NIR IDENTITY BEACONS</b><strong>ACTIVE</strong></span>
-        <em>identity only · no tracks / intent / assignment</em>
-      </section>
-
-      {state.compareOpen && <section className="comparison" aria-label="Three-drone pinned comparison">
-        <header><strong>INDEPENDENT LOCAL VIEWS · SAME PHYSICAL HOSTILE</strong><button onClick={() => dispatch({ type: 'toggle-compare' })}>CLOSE</button></header>
-        <div className="comparison-grid">
-          {compareIds.map((id) => {
-            const decision = replay ? replayDecision(replay, state.frame, id) : undefined;
-            return <article key={id}><h2>{rosterCallsign(replay, id)}</h2><p>LOCAL TRACK <b>{decision?.local ?? 'NO DATA'}</b></p><dl><dt>P(leak)</dt><dd>{decision?.leak ?? '—'}{decision?.leak === undefined ? '' : '%'}</dd><dt>P(my action)</dt><dd>{decision?.success ?? '—'}{decision?.success === undefined ? '' : '%'}</dd><dt>P(friendly cover)</dt><dd>{decision?.covered ?? '—'}{decision?.covered === undefined ? '' : '%'}</dd></dl><strong>{decision?.decision ?? 'NO REPLAY DECISION'}</strong></article>;
-          })}
-        </div>
-        <p className="comparison-note">Divergent local IDs. No RF messages exchanged.</p>
-      </section>}
+      <PlaybackBar
+        model={model}
+        time={time}
+        playing={playing}
+        enabled={playbackEnabled}
+        playbackRate={playbackRate}
+        currentLabel={guided ? `${activeChapter.title} · ${currentEvent?.presentation?.label ?? "recorded evidence"}` : focusedWindow ? `${focusedWindow.label} · ${currentEvent?.presentation?.label ?? "recorded evidence"}` : currentEvent?.presentation?.label ?? "Replay ready"}
+        onToggle={() => setPlaying((current) => !current)}
+        onStep={step}
+        onReset={() => { setPlaying(false); setTime(focusedWindow?.start ?? 0); }}
+        onSeek={setTime}
+        onRateChange={setPlaybackRate}
+      />
     </main>
   );
 }
 
-type TrainingStatus = 'queued' | 'running' | 'completed' | 'failed';
-
-interface TrainingArtifact {
-  name?: string;
-  filename?: string;
-  format?: string;
-  path?: string;
-  download_url?: string;
-  url?: string;
-  size_bytes?: number;
-  sha256?: string;
-  runtime_verified?: boolean;
-  max_abs_error?: number;
+interface ViewRouterProps {
+  view: ViewName;
+  model: ReplayModel;
+  models: Partial<Record<ScenarioId, ReplayModel>>;
+  time: number;
+  truthOverlay: boolean;
+  setTruthOverlay: (value: boolean) => void;
+  guided: boolean;
+  chapter: DemoChapter;
+  onChapterSelect: (chapter: DemoChapter) => void;
+}
+function DemoChapterNav({ active, onSelect }: { active: DemoChapter; onSelect: (chapter: DemoChapter) => void }) {
+  return (
+    <nav className="demo-chapters" aria-label="Guided demo chapters">
+      {DEMO_CHAPTERS.map((chapter, index) => (
+        <button key={chapter.id} type="button" className={chapter.id === active.id ? "active" : ""} aria-current={chapter.id === active.id ? "step" : undefined} onClick={() => onSelect(chapter)}>
+          <span>{String(index + 1).padStart(2, "0")}</span>{chapter.label}
+        </button>
+      ))}
+    </nav>
+  );
 }
 
-interface TrainingMetric {
-  epoch: number;
-  train_loss: number;
-  heldout_loss: number;
+
+function ViewRouter(props: ViewRouterProps) {
+  switch (props.view) {
+    case "Scene": return <SceneView {...props} />;
+    case "Cameras": return <CamerasView model={props.model} time={props.time} />;
+    case "Replay": return <ReplayView models={props.models} time={props.time} />;
+    case "Identity": return <IdentityView model={props.model} time={props.time} />;
+    case "Safety": return <SafetyView model={props.model} time={props.time} />;
+    case "Fleet": return <FleetView model={props.model} time={props.time} />;
+  }
 }
 
-interface TrainingRun {
-  id?: string;
-  run_id?: string;
-  status: TrainingStatus;
-  epoch?: number;
-  current_epoch?: number;
-  epochs?: number;
-  train_loss?: number;
-  held_out_loss?: number;
-  config?: { seed: number; samples: number; epochs: number };
-  metrics?: TrainingMetric[];
-  report?: Record<string, unknown> | string;
-  artifacts?: TrainingArtifact[];
-  error?: string;
-  detail?: string;
-}
-
-function apiError(data: unknown, fallback: string) {
-  if (!data || typeof data !== 'object') return fallback;
-  const detail = (data as { detail?: unknown }).detail;
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) return detail.map((item) => typeof item === 'object' && item && 'msg' in item ? String(item.msg) : String(item)).join('; ');
-  return fallback;
-}
-
-async function trainingRequest(url: string, options?: RequestInit): Promise<TrainingRun> {
-  const response = options ? await fetch(url, options) : await fetch(url);
-  const data: unknown = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(apiError(data, `Training API request failed (${response.status})`));
-  return data as TrainingRun;
-}
-
-function Training() {
-  const [seed, setSeed] = useState(17);
-  const [samples, setSamples] = useState(256);
-  const [epochs, setEpochs] = useState(30);
-  const [run, setRun] = useState<TrainingRun | null>(null);
-  const [runId, setRunId] = useState('');
-  const [error, setError] = useState('');
-  const [starting, setStarting] = useState(false);
-
+function SceneView({ model, time, truthOverlay, setTruthOverlay, guided, chapter, onChapterSelect }: ViewRouterProps) {
+  const [selectedAgent, setSelectedAgent] = useState("I000");
+  const telemetry = latestAgentTelemetry(model, time, selectedAgent);
   useEffect(() => {
-    if (!runId) return;
-    let active = true;
-    let timer = 0;
-    const poll = async () => {
-      try {
-        const next = await trainingRequest(`/api/training/runs/${encodeURIComponent(runId)}`);
-        if (!active) return;
-        setRun(next);
-        if (next.status === 'queued' || next.status === 'running') timer = window.setTimeout(poll, 1000);
-      } catch (caught) {
-        if (active) setError(caught instanceof Error ? caught.message : 'Unable to read training status');
-      }
+    if (!guided) return;
+    const chapterAgent = chapter.id === "miss"
+      ? "I012"
+      : ["recover", "close"].includes(chapter.id)
+        ? "I014"
+        : chapter.id === "return"
+          ? "I017"
+          : chapter.id === "intercept"
+            ? "I016"
+            : "I000";
+    setSelectedAgent(chapterAgent);
+  }, [chapter.id, guided]);
+  return (
+    <div className="view-grid scene-view">
+      <div className="primary-canvas">
+        <CesiumScene model={model} time={time} mode="overview" truthOverlay={truthOverlay} />
+        {guided ? <StoryGuide model={model} time={time} chapter={chapter} onChapterSelect={onChapterSelect} /> : <PinnedComparison model={model} time={time} />}
+      </div>
+      <aside className="inspector scene-inspector">
+        <PanelHeading title="Decision inspector" meta="One agent · local state" />
+        <label className="agent-select">Interceptor<select value={selectedAgent} onChange={(event) => setSelectedAgent(event.target.value)}>{Array.from({ length: model.data.config.interceptors }, (_, index) => <option key={index} value={`I${String(index).padStart(3, "0")}`}>{`I${String(index).padStart(3, "0")}`}</option>)}</select></label>
+        <DecisionPanel event={telemetry} />
+        <label className="toggle-row">
+          <span>Truth overlay <small>Evaluator view</small></span>
+          <input type="checkbox" checked={truthOverlay} onChange={(event) => setTruthOverlay(event.target.checked)} />
+          <i aria-hidden="true" />
+        </label>
+      </aside>
+    </div>
+  );
+}
+function StoryGuide({ model, time, chapter, onChapterSelect }: { model: ReplayModel; time: number; chapter: DemoChapter; onChapterSelect: (chapter: DemoChapter) => void }) {
+  const chapterIndex = DEMO_CHAPTERS.findIndex((item) => item.id === chapter.id);
+  const nextChapter = DEMO_CHAPTERS[chapterIndex + 1];
+  const neutralized = new Set(model.eventMarkers.filter((event) => event.kind === "neutralized" && event.time_s <= time).map((event) => event.truth.hostile_id).filter(Boolean)).size;
+  const actors = chapter.id === "miss"
+    ? "I012 → H001"
+    : ["recover", "close"].includes(chapter.id)
+      ? "I014 → H001"
+      : chapter.id === "return"
+        ? "I017 / I019 → COAST"
+        : `${model.data.config.interceptors} FRIENDLY · ${model.data.config.hostiles} HOSTILE`;
+
+  return (
+    <section className={`story-guide ${chapter.tone}`} aria-live="polite">
+      <article key={chapter.id}>
+        <header><span>Mission chapter {chapterIndex + 1} / {DEMO_CHAPTERS.length}</span><time>{formatTime(time)}</time></header>
+        <h1>{chapter.title}</h1>
+        <p>{chapter.explanation}</p>
+        <dl>
+          <div><dt>Focus</dt><dd>{actors}</dd></div>
+          <div><dt>Threats active</dt><dd>{model.data.config.hostiles - neutralized}</dd></div>
+          <div><dt>Neutralized</dt><dd>{neutralized}</dd></div>
+          <div><dt>RF messages</dt><dd>0</dd></div>
+        </dl>
+        {nextChapter && <button type="button" onClick={() => onChapterSelect(nextChapter)}>Next · {nextChapter.label}<span>{formatTime(nextChapter.time)}</span></button>}
+      </article>
+    </section>
+  );
+}
+
+
+function CamerasView({ model, time }: { model: ReplayModel; time: number }) {
+  const lead = latestTargetTelemetry(model, time);
+  const observer = latestTargetTelemetry(model, time, true) ?? lead;
+  const leadId = lead?.agent_local?.agent_id ?? "No active lead";
+  const observerId = observer?.agent_local?.agent_id ?? "No active observer";
+  return (
+    <div className="camera-layout">
+      <section className="camera-pane">
+        <PanelHeading title={`${leadId} · Interceptor`} meta="Forward local track" tag="Ground truth masked" />
+        <div className="camera-canvas"><CesiumScene model={model} time={time} mode="forward" truthOverlay={false} /></div>
+      </section>
+      <section className="camera-pane">
+        <PanelHeading title={`${observerId} · Observer`} meta="Temporary high-ground role" tag="Ground truth masked" />
+        <div className="camera-canvas"><CesiumScene model={model} time={time} mode="observer" truthOverlay={false} /></div>
+      </section>
+      <TrackLedger events={[lead, observer]} />
+      <section className="geometry-inset">
+        <span className="inset-title">View geometry · side elevation</span>
+        <div className="geometry-diagram"><span className="upper-drone">Observer</span><span className="lower-drone">Interceptor</span><i className="down-cone" /><i className="forward-cone" /><b>Upper</b><b>Lower</b></div>
+      </section>
+    </div>
+  );
+}
+
+function ReplayView({ models, time }: { models: Partial<Record<ScenarioId, ReplayModel>>; time: number }) {
+  const [mode, setMode] = useState<"outcome" | "uncertainty">("outcome");
+  if (mode === "uncertainty") {
+    const model = models.full_demo ?? models.miss_recovery ?? null;
+    return (
+      <div className="replay-detail-layout">
+        <ViewHeading title="Replay" subtitle="Observation uncertainty" actions={<SubViewSwitch value={mode} onChange={setMode} />} />
+        <div className="uncertainty-canvas"><CesiumScene model={model} time={time} mode="uncertainty" truthOverlay={false} /></div>
+        <aside className="inspector compact-inspector">
+          <PanelHeading title="Track inspector" />
+          <DefinitionRows rows={[["Source", "Local"], ["Visibility", "Partial"], ["Identity", "Unknown"], ["Track age", "Stale"]]} amberRows={[2, 3]} />
+          <SideElevation compact />
+        </aside>
+        <SpeedTrace model={model} time={time} />
+        <section className="track-legend"><PanelHeading title="Track legend" /><span><i className="envelope" />Track spread</span><span><i className="prediction" />Prediction envelope</span><span><i className="recorded-line" />Recorded trail</span><span>Confidence level —</span></section>
+      </div>
+    );
+  }
+
+  const success = models.success ?? null;
+  const miss = models.miss_recovery ?? null;
+  const successTime = success ? (time / Math.max(miss?.duration ?? 1, 1)) * success.duration : 0;
+  return (
+    <div className="outcome-layout">
+      <ViewHeading title="Replay" subtitle="Synchronized outcomes" actions={<SubViewSwitch value={mode} onChange={setMode} />} />
+      <section className="outcome-pane"><h2>Contact</h2><CesiumScene model={success} time={successTime} mode="contact" truthOverlay /></section>
+      <section className="outcome-pane"><h2>Miss</h2><CesiumScene model={miss} time={time} mode="miss" truthOverlay /></section>
+      <div className="outcome-inspector"><MetricCell label="Outcome" value="Recorded event" /><MetricCell label="Source" value="Simulator replay" /><MetricCell label="Physics" value="Debris not modelled" /></div>
+    </div>
+  );
+}
+
+function IdentityView({ model, time }: { model: ReplayModel; time: number }) {
+  const event = latestAgentTelemetry(model, time, "I000");
+  const agent = event?.agent_local?.agent_id ?? "Awaiting observer";
+  const target = event?.agent_local?.target_id ?? "Unclassified track";
+  const classified = Boolean(event);
+  const selectedState = classified ? "Hostile evidence" : "Unknown";
+  return (
+    <div className="identity-layout">
+      <div className="identity-canvas"><CesiumScene model={model} time={time} mode="identity" truthOverlay={false} /></div>
+      <aside className="identity-inspector">
+        <PanelHeading title="Local identity evidence" meta={`Recorded ${formatTime(time)} · no evaluator truth`} />
+        <div className="compare-head"><strong>{agent}</strong><strong>{target}</strong></div>
+        <CompareRow label="Observation" left="Launch lineage" right={classified ? "Ingress track" : "Sensor track pending"} />
+        <CompareRow label="Identity signal" left="Authenticated NIR" right={classified ? "No friendly code" : "No determination"} />
+        <CompareRow label="Status" left="Confirmed friendly" right={selectedState} emphasis={classified} />
+        <p>Beacon loss alone never implies hostile. Classification is local and evidence-led.</p>
+      </aside>
+      <div className="identity-states" aria-label="Identity state machine">
+        {["Confirmed", "Lineage", "Unknown", "Hostile evidence"].map((item) => <span key={item} className={`${item.toLowerCase().replace(" ", "-")} ${item === selectedState ? "selected" : ""}`}>{item}</span>)}
+      </div>
+      <div className="identity-events"><span className="done">Lineage retained</span><span className={classified ? "done" : ""}>NIR evaluated</span><span className={classified ? "current" : ""}>{classified ? "Hostile classified" : "Awaiting evidence"}</span><em>Local state · no RF exchange</em></div>
+    </div>
+  );
+}
+
+function SafetyView({ model, time }: { model: ReplayModel; time: number }) {
+  const event = closestSafetyTelemetry(model, time);
+  const separation = event?.agent_local?.predicted_min_separation_m;
+  const override = event?.agent_local?.safety_override ?? false;
+  return (
+    <div className="safety-layout">
+      <div className="safety-canvas"><CesiumScene model={model} time={time} mode="safety" truthOverlay={false} /></div>
+      <aside className="inspector safety-inspector">
+        <PanelHeading title="Collision-avoidance evidence" meta={`Recorded ${formatTime(time)}`} tag={override ? "OVERRIDE ACTIVE" : "MONITORING"} />
+        <DefinitionRows rows={[
+          ["Unit", event?.agent_local?.agent_id ?? "—"],
+          ["Filter", model.data.metrics.safety_filter],
+          ["State", override ? "Velocity override" : "Preferred velocity safe"],
+          ["Predicted separation", separation == null ? "No neighbor" : `${separation.toFixed(1)} m`]
+        ]} amberRows={override ? [2] : []} />
+        <SideElevation compact safety />
+        <div className="legend-list slim"><span><i className="line-dashed" />Preferred</span><span><i className="line-solid" />Applied</span><span><i className="legend-ring friendly-ring" />8 m limit</span></div>
+      </aside>
+      <SeparationTrace model={model} time={time} />
+    </div>
+  );
+}
+
+function FleetView({ model, time }: { model: ReplayModel; time: number }) {
+  const snapshot = agentTelemetryAt(model, time);
+  const rows = Array.from({ length: model.data.config.interceptors }, (_, index) => {
+    const unit = `I${String(index).padStart(3, "0")}`;
+    const event = snapshot.get(unit);
+    const removedAt = model.removedAt.get(unit);
+    const lifecycle = [...model.eventMarkers].reverse().find((marker) =>
+      marker.time_s <= time && marker.truth.interceptor_id === unit
+      && ["launched", "formation_occupied", "mobilized", "return_to_base", "landed"].includes(marker.kind)
+    );
+    return {
+      unit,
+      state: removedAt !== undefined && time >= removedAt ? "Expended" : lifecycle?.kind === "landed" ? "Landed" : event?.truth.state?.replaceAll("_", " ") ?? "Docked",
+      battery: event?.agent_local?.battery ?? event?.truth.battery ?? 1
     };
-    void poll();
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [runId]);
+  });
+  const count = (...states: string[]) => rows.filter((row) => states.includes(row.state.toLowerCase())).length;
+  const stages = [
+    { label: "Docked", count: count("docked") },
+    { label: "Deploying", count: count("deploying") },
+    { label: "On station", count: count("on station", "reserve") },
+    { label: "Engaging", count: count("intercepting", "recovery intercept") },
+    { label: "Returning", count: count("returning") },
+    { label: "Landed", count: count("landed") }
+  ];
+  const engaged = count("intercepting", "recovery intercept");
+  const retained = rows.length - count("expended");
+  return (
+    <div className="fleet-layout">
+      <div className="fleet-canvas"><CesiumScene model={model} time={time} mode="fleet" truthOverlay={false} /></div>
+      <aside className="inspector fleet-inspector">
+        <PanelHeading title="Fleet lifecycle" meta={`${retained} retained · ${engaged} engaging · ${formatTime(time)}`} />
+        <table><thead><tr><th>Unit</th><th>State</th><th>Battery</th></tr></thead><tbody>
+          {rows.map((row) => <FleetRow key={row.unit} {...row} />)}
+        </tbody></table>
+      </aside>
+      <div className="lifecycle" aria-label="Current fleet lifecycle counts">{stages.map((stage) => <span key={stage.label} className={stage.count > 0 ? stage.label === "Returning" ? "warning" : "active" : ""}>{stage.label}<b>{stage.count}</b></span>)}</div>
+    </div>
+  );
+}
 
-  const start = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setStarting(true);
-    setError('');
-    setRun(null);
-    setRunId('');
-    try {
-      const created = await trainingRequest('/api/training/runs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seed, samples, epochs }),
-      });
-      const id = created.id ?? created.run_id;
-      if (!id) throw new Error('Training API returned no run identifier');
-      setRun(created);
-      setRunId(id);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Unable to start training');
-    } finally {
-      setStarting(false);
-    }
+function PlaybackBar({ model, time, playing, currentLabel, enabled, playbackRate, onToggle, onStep, onReset, onSeek, onRateChange }: {
+  model: ReplayModel | null; time: number; playing: boolean; currentLabel: string; enabled: boolean; playbackRate: number;
+  onToggle: () => void; onStep: (direction: -1 | 1) => void; onReset: () => void; onSeek: (time: number) => void; onRateChange: (rate: number) => void;
+}) {
+  const duration = model?.duration ?? 1;
+  const markers = useMemo(() => model?.eventMarkers.filter((event) => ["launched", "formation_occupied", "threat_ingress", "engagement_attempt", "coverage_expired", "observer_claim", "neutralized", "return_to_base", "landed"].includes(event.kind)) ?? [], [model]);
+  const cycleRate = () => {
+    const index = PLAYBACK_RATES.indexOf(playbackRate as (typeof PLAYBACK_RATES)[number]);
+    onRateChange(PLAYBACK_RATES[(index + 1) % PLAYBACK_RATES.length]);
   };
+  return (
+    <footer className={`playback-bar ${enabled ? "" : "static-view"}`}>
+      {enabled ? (
+        <>
+          <div className="transport">
+            <button onClick={onReset} aria-label="Reset replay"><RotateCcw /></button>
+            <button onClick={() => onStep(-1)} aria-label="Previous frame"><ChevronFirst /></button>
+            <button className="play-button" onClick={onToggle} aria-label={playing ? "Pause replay" : "Play replay"}>{playing ? <Pause /> : <Play />}</button>
+            <button onClick={() => onStep(1)} aria-label="Next frame"><ChevronLast /></button>
+            <button className="speed-toggle" onClick={cycleRate} aria-label={`Playback speed ${playbackRate} times. Activate to change.`}>{playbackRate}×</button>
+          </div>
+          <div className="timeline-wrap">
+            <input aria-label="Replay timeline" type="range" min="0" max={duration} step="0.1" value={Math.min(time, duration)} onChange={(event) => onSeek(Number(event.target.value))} style={{ "--progress": `${(time / duration) * 100}%` } as React.CSSProperties} />
+            <div className="event-markers" aria-hidden="true">{markers.map((event, index) => <i key={`${event.kind}-${index}`} style={{ left: `${(event.time_s / duration) * 100}%` }} className={event.kind === "neutralized" ? "blue" : "amber"} />)}</div>
+            <span className="event-label"><span>{currentLabel}</span><b>{formatTime(time)} / {formatDuration(duration)}</b></span>
+          </div>
+        </>
+      ) : <div className="static-view-note">Replay controls remain available in operational views</div>}
+      <div className="blackout-status"><span>RF denied · 0 ground / 0 inter-drone messages</span><span className="nir">NIR · one-way identity only</span></div>
+    </footer>
+  );
+}
 
-  const latestMetric = run?.metrics?.at(-1);
-  const epoch = latestMetric?.epoch ?? run?.epoch ?? run?.current_epoch;
-  const totalEpochs = run?.config?.epochs ?? run?.epochs ?? epochs;
-  const trainLoss = latestMetric?.train_loss ?? run?.train_loss;
-  const heldOutLoss = latestMetric?.heldout_loss ?? run?.held_out_loss;
-  const reportEntries = run?.report && typeof run.report === 'object' ? Object.entries(run.report) : [];
-  const statusError = run?.status === 'failed' ? run.error ?? run.detail ?? 'Training run failed' : '';
+function formatTime(value: number) {
+  const seconds = Math.max(0, Math.floor(value));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+function formatDuration(value: number) {
+  const seconds = Math.max(0, Math.ceil(value));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
-  return <main className="training-page">
-    <header className="training-header">
-      <a className="wordmark" href="/"><b>AIR</b><span>DND</span></a>
-      <div><h1>Model training</h1><p>Live backend execution · no local fallback</p></div>
-      <nav aria-label="Primary"><a href="/">WORLDVIEW</a><a href="/evidence">EVIDENCE</a><a className="active" href="/training">TRAINING</a></nav>
-    </header>
-    <section className="training-workspace">
-      <form className="training-config" onSubmit={start}>
-        <div><span>RUN CONFIGURATION</span><p>Start a new belief-model training job on the API service.</p></div>
-        <label>Seed<input aria-label="Seed" type="number" min="0" max="2147483647" step="1" required value={seed} onChange={(event) => setSeed(Number(event.target.value))} /></label>
-        <label>Samples<input aria-label="Samples" type="number" min="4" max="4096" step="1" required value={samples} onChange={(event) => setSamples(Number(event.target.value))} /></label>
-        <label>Epochs<input aria-label="Epochs" type="number" min="1" max="500" step="1" required value={epochs} onChange={(event) => setEpochs(Number(event.target.value))} /></label>
-        <button type="submit" disabled={starting || run?.status === 'queued' || run?.status === 'running'}>{starting ? 'STARTING…' : 'START TRAINING'}</button>
-      </form>
-      <article className="training-status" aria-live="polite">
-        <div className="training-status-line"><span>RUN STATUS</span><strong>{run?.status.toUpperCase() ?? 'NOT STARTED'}</strong></div>
-        {run && <>
-          <dl className="training-run-meta"><dt>Run ID</dt><dd>{run.id ?? run.run_id}</dd>{epoch !== undefined && <><dt>Progress</dt><dd>EPOCH {epoch} / {totalEpochs}</dd></>}</dl>
-          {(trainLoss !== undefined || heldOutLoss !== undefined) && <div className="loss-grid">
-            {trainLoss !== undefined && <div><span>TRAIN LOSS</span><strong>{trainLoss}</strong></div>}
-            {heldOutLoss !== undefined && <div><span>HELD-OUT LOSS</span><strong>{heldOutLoss}</strong></div>}
-          </div>}
-          {run.status === 'completed' && run.report && <section className="completion-report"><h2>Completion report</h2>{typeof run.report === 'string' ? <p>{run.report}</p> : <dl>{reportEntries.map(([key, value]) => <div key={key}><dt>{key.replaceAll('_', ' ')}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd></div>)}</dl>}</section>}
-          {run.status === 'completed' && run.artifacts && run.artifacts.length > 0 && <section className="training-artifacts"><h2>Artifacts</h2>{run.artifacts.map((artifact, index) => {
-            const name = artifact.path ?? artifact.name ?? artifact.filename ?? artifact.format;
-            const href = artifact.download_url ?? artifact.url;
-            return <div className="artifact-row" key={`${name}-${index}`}><div>{name && (href ? <a href={href}>{name}</a> : <strong>{name}</strong>)}<dl>{artifact.format && <><dt>Format</dt><dd>{artifact.format}</dd></>}{artifact.size_bytes !== undefined && <><dt>Size</dt><dd>{artifact.size_bytes.toLocaleString()} bytes</dd></>}{artifact.runtime_verified !== undefined && <><dt>Runtime verified</dt><dd>{String(artifact.runtime_verified)}</dd></>}{artifact.max_abs_error !== undefined && <><dt>Max abs error</dt><dd>{artifact.max_abs_error}</dd></>}</dl></div>{artifact.sha256 && <code>{artifact.sha256}</code>}</div>;
-          })}</section>}
-        </>}
-        {(error || statusError) && <p className="training-error" role="alert">{error || statusError}</p>}
-        {!run && !error && <p className="training-empty">Configure the bounded inputs and start a backend run. Progress appears only after the API returns it.</p>}
-      </article>
+function PanelHeading({ title, meta, tag }: { title: string; meta?: string; tag?: string }) {
+  return <header className="panel-heading"><div><h2>{title}</h2>{meta && <span>{meta}</span>}</div>{tag && <small>{tag}</small>}</header>;
+}
+
+function ViewHeading({ title, subtitle, actions }: { title: string; subtitle: string; actions: React.ReactNode }) {
+  return <header className="view-heading"><h1>{title}</h1><span>{subtitle}</span>{actions}</header>;
+}
+
+function SubViewSwitch({ value, onChange }: { value: "outcome" | "uncertainty"; onChange: (value: "outcome" | "uncertainty") => void }) {
+  return <div className="subview-switch" role="group" aria-label="Replay detail"><button aria-pressed={value === "outcome"} className={value === "outcome" ? "active" : ""} onClick={() => onChange("outcome")}>Outcomes</button><button aria-pressed={value === "uncertainty"} className={value === "uncertainty" ? "active" : ""} onClick={() => onChange("uncertainty")}>Observation</button></div>;
+}
+
+function TrackLedger({ events }: { events: Array<ReplayEvent | null> }) {
+  const unique = events.filter((event, index) => event && events.findIndex((candidate) => candidate?.agent_local?.local_track_id === event.agent_local?.local_track_id) === index);
+  return <section className="track-ledger"><PanelHeading title="Local track ledger" /><table><thead><tr><th>Local track</th><th>Observer</th><th>Identity</th><th>Confidence</th></tr></thead><tbody>{unique.length ? unique.map((event) => event && <tr key={`${event.agent_local?.agent_id}-${event.agent_local?.local_track_id}`}><td>{event.agent_local?.local_track_id ?? "—"}</td><td>{event.agent_local?.agent_id ?? "—"}</td><td className="amber-text">Hostile evidence</td><td>{Math.round((event.agent_local?.belief?.confidence ?? 0) * 100)}%</td></tr>) : <tr><td colSpan={4}>Awaiting local tracks</td></tr>}</tbody></table></section>;
+}
+
+function DecisionPanel({ event }: { event: ReplayEvent | null }) {
+  if (!event) return <p className="empty-panel">Awaiting launch telemetry</p>;
+  const local = event.agent_local;
+  const belief = local?.belief;
+  const costs = local?.cost_terms;
+  return (
+    <div className="decision-panel">
+      <div className="decision-primary"><span>{event.truth.state?.replaceAll("_", " ") ?? "DOCKED"}</span><strong>{local?.target_id ? `INTERCEPT ${local.target_id}` : local?.guidance_mode?.replaceAll("_", " ") ?? "HOLD"}</strong><p>{local?.selection_reason ?? "Preserving assigned grid state."}</p></div>
+      <DefinitionRows rows={[
+        ["Local track", local?.local_track_id ?? "—"],
+        ["Identity", local?.target_id ? "HOSTILE EVIDENCE" : local?.identity_state ?? "—"],
+        ["Battery", `${Math.round((local?.battery ?? event.truth.battery ?? 0) * 100)}%`],
+        ["Guidance", local?.guidance_mode?.replaceAll("_", " ") ?? "—"],
+        ["Safety", local?.safety_override ? "RVO2 override" : "Preferred safe"]
+      ]} amberRows={local?.safety_override ? [4] : []} />
+      {belief && (
+        <details>
+          <summary>Belief & mission utility</summary>
+          <DefinitionRows rows={[
+            ["P(leak)", `${Math.round(belief.target_leak_probability * 100)}%`],
+            ["P(success)", `${Math.round(belief.action_success_probability * 100)}%`],
+            ["P(covered)", `${Math.round(belief.friendly_coverage_probability * 100)}%`],
+            ["Intercept", `${belief.predicted_intercept_time.toFixed(1)} s`],
+            ["Confidence", `${Math.round(belief.confidence * 100)}%`],
+            ["Utility", local?.utility?.toFixed(3) ?? "—"],
+            ["Costs E / B / G / C", costs ? `${costs.expenditure.toFixed(3)} / ${costs.battery.toFixed(3)} / ${costs.coverage_loss.toFixed(3)} / ${costs.collision.toFixed(3)}` : "—"],
+            ["Hysteresis", local?.hysteresis_margin == null ? "—" : `${local.hysteresis_margin.toFixed(3)} · ${local.competing_action} · ${local.hysteresis_ticks} ticks`]
+          ]} />
+        </details>
+      )}
+    </div>
+  );
+}
+
+function PinnedComparison({ model, time }: { model: ReplayModel; time: number }) {
+  const [pins, setPins] = useState(["I000", "I001", "I002"]);
+  return (
+    <section className="pinned-comparison" aria-label="Pinned interceptor comparison">
+      {pins.map((agentId, slot) => {
+        const event = latestAgentTelemetry(model, time, agentId);
+        const belief = event?.agent_local?.belief;
+        return (
+          <article key={slot}>
+            <select aria-label={`Pinned interceptor ${slot + 1}`} value={agentId} onChange={(change) => setPins((current) => current.map((value, index) => index === slot ? change.target.value : value))}>
+              {Array.from({ length: model.data.config.interceptors }, (_, index) => {
+                const value = `I${String(index).padStart(3, "0")}`;
+                return <option key={value} value={value}>{value}</option>;
+              })}
+            </select>
+            <strong>{event?.agent_local?.target_id ?? "No target"}</strong>
+            <span>P(leak) {belief ? `${Math.round(belief.target_leak_probability * 100)}%` : "—"}</span>
+            <span>P(action) {belief ? `${Math.round(belief.action_success_probability * 100)}%` : "—"}</span>
+            <span>P(cover) {belief ? `${Math.round(belief.friendly_coverage_probability * 100)}%` : "—"}</span>
+            <b>{event?.agent_local?.target_id ? "INTERCEPT" : event?.truth.state?.replaceAll("_", " ") ?? "DOCKED"}</b>
+          </article>
+        );
+      })}
     </section>
-  </main>;
+  );
 }
 
-interface BenchmarkReport {
-  evidence_class: string;
-  git_revision: string;
-  paired_seed_count: number;
-  hostiles: number;
-  methods: string[];
-  claims: Record<string, string>;
-  statistics: Record<string, {
-    leakage: { numerator: number; denominator: number; mean: number };
-    duplicate_pursuit: { numerator: number; denominator: number };
-    minimum_separation_m: { mean: number };
-    latency: { p95_ms: number };
-  }>;
+function SideElevation({ compact = false, safety = false }: { compact?: boolean; safety?: boolean }) {
+  return <div className={`side-elevation ${compact ? "compact" : ""} ${safety ? "safety" : ""}`}><span className="upper-label">Upper</span><span className="lower-label">Lower</span><span className="surface-label">Surface</span><i className="elevation-line upper" /><i className="elevation-line lower" /><i className="elevation-line surface" /><b className="drone-mark one" /><b className="drone-mark two" /><b className="drone-mark three" />{!safety && <i className="view-cone" />}</div>;
 }
 
-function Evidence() {
-  const [report, setReport] = useState<BenchmarkReport | null>(null);
-  const [error, setError] = useState('LOADING VERIFIED EVIDENCE');
-  const [selected, choose] = useReducer((_s: number, n: number) => n, 0);
-
-  useEffect(() => {
-    fetch('/api/evidence/files/reports/benchmark.json')
-      .then((response) => {
-        if (!response.ok) throw new Error('Evidence API unavailable');
-        return response.json();
-      })
-      .then((data: BenchmarkReport) => { setReport(data); setError(''); })
-      .catch(() => setError('GENERATE EVIDENCE FIRST · START THE FASTAPI SERVICE'));
-  }, []);
-
-  const method = report?.methods[selected] ?? 'airdnd';
-  const metrics = report?.statistics[method];
-  const label = method.replaceAll('_', ' ').toUpperCase();
-
-  return <main className="evidence-page">
-    <header className="evidence-header"><a className="wordmark" href="/"><b>AIR</b><span>DND</span></a><div><h1>Evidence archive</h1><p>Replay-to-log inspection · exact metadata · raw artifacts</p></div><nav aria-label="Primary"><a href="/">WORLDVIEW</a><a data-testid="nav-training" href="/training">TRAINING</a></nav></header>
-    <section className="evidence-ledger">
-      <div className="run-index"><h2>Recorded methods</h2>{(report?.methods ?? ['airdnd']).map((item, index) => <button className={selected === index ? 'selected' : ''} key={item} onClick={() => choose(index)}><span>{String(index + 1).padStart(2, '0')}</span><b>{item.replaceAll('_', ' ')}</b><small>100-hostile paired benchmark</small></button>)}</div>
-      <article className="run-sheet">
-        <div className="run-rule"><span data-testid="evidence-status">{error || report?.evidence_class}</span><strong>{report ? `${report.paired_seed_count} PAIRED SEEDS` : 'NO VERIFIED RUN'}</strong></div>
-        <h2>{label}</h2><p>100-hostile fixed-configuration simulation benchmark</p>
-        <dl className="metadata"><dt>Git revision</dt><dd>{report?.git_revision ?? 'unavailable'}</dd><dt>Config</dt><dd>configs/benchmark.json</dd><dt>Replay authority</dt><dd>frame-index event log</dd><dt>Paired seeds</dt><dd>{report?.paired_seed_count ?? 'pending'}</dd><dt>Hostiles</dt><dd>{report?.hostiles ?? 'pending'}</dd><dt>Evidence class</dt><dd>{report?.evidence_class ?? 'pending'}</dd></dl>
-        <div className="metric-table"><div><span>LEAKAGE</span><b>{metrics ? `${metrics.leakage.numerator}/${metrics.leakage.denominator}` : 'Pending'}</b></div><div><span>DUPLICATE PURSUIT</span><b>{metrics ? `${metrics.duplicate_pursuit.numerator}/${metrics.duplicate_pursuit.denominator}` : 'Pending'}</b></div><div><span>MIN SEPARATION</span><b>{metrics ? `${metrics.minimum_separation_m.mean.toFixed(1)} m` : 'Pending'}</b></div><div><span>P95 LATENCY</span><b>{metrics ? `${metrics.latency.p95_ms.toFixed(3)} ms` : 'Pending'}</b></div></div>
-        <p className="evidence-warning">Simulation evidence only. Collision filtering uses the official vendored snape/RVO2-3D implementation. Learned-model superiority failed its paired confidence test and is not claimed.</p>
-        <div className="downloads"><a href="/api/evidence/files/raw/benchmark.jsonl">DOWNLOAD JSONL</a><a href="/api/evidence/files/raw/benchmark.csv">DOWNLOAD CSV</a><a href="/api/evidence/manifest">SHA-256 MANIFEST</a></div>
-      </article>
-    </section>
-    <footer><span>BASELINES · NAIVE STATIC / INDEPENDENT GREEDY / DETERMINISTIC ABLATION / AIRDND / OMNISCIENT TEACHER</span><span>AC-035</span></footer>
-  </main>;
+function DefinitionRows({ rows, amberRows = [] }: { rows: string[][]; amberRows?: number[] }) {
+  return <dl className="definition-rows">{rows.map(([term, value], index) => <div key={term}><dt>{term}</dt><dd className={amberRows.includes(index) ? "amber-text" : ""}>{value}</dd></div>)}</dl>;
 }
 
-export default function App() {
-  if (window.location.pathname.startsWith('/training')) return <Training />;
-  return window.location.pathname.startsWith('/evidence') ? <Evidence /> : <Worldview />;
+function SpeedTrace({ model, time }: { model: ReplayModel | null; time: number }) {
+  const latest = model ? latestTargetTelemetry(model, time) : null;
+  const agentId = latest?.agent_local?.agent_id;
+  const samples = useMemo(() => {
+    if (!model || !agentId) return [];
+    return model.data.events
+      .filter((event) => (
+        event.time_s <= time
+        && event.kind === "trajectory_step"
+        && event.agent_local?.agent_id === agentId
+        && event.agent_local.safe_velocity
+      ))
+      .filter((_, index) => index % 5 === 0)
+      .map((event) => {
+        const velocity = event.agent_local?.safe_velocity ?? [0, 0, 0];
+        return { time: event.time_s, speed: Math.hypot(...velocity) };
+      });
+  }, [agentId, model, time]);
+  const points = samples.map((sample) => `${(sample.time / Math.max(model?.duration ?? 1, 1)) * 600},${82 - Math.min(72, sample.speed / 90 * 72)}`).join(" ");
+  return <section className="trace-panel"><PanelHeading title="Recorded speed" meta={agentId ?? "No active local track"} /><svg role="img" aria-label="Recorded interceptor speed from replay telemetry" viewBox="0 0 600 90" preserveAspectRatio="none"><polyline points={points} fill="none" /></svg></section>;
 }
+
+function SeparationTrace({ model, time }: { model: ReplayModel; time: number }) {
+  const samples = useMemo(() => model.data.events.filter((event) => event.time_s <= time && event.kind === "trajectory_step" && event.agent_local?.predicted_min_separation_m != null).map((event) => ({ time: event.time_s, value: event.agent_local?.predicted_min_separation_m ?? 0 })).filter((sample, index) => index % 20 === 0), [model, time]);
+  const width = 900;
+  const height = 90;
+  const points = samples.map((sample) => `${(sample.time / Math.max(model.duration, 1)) * width},${height - Math.min(72, sample.value * 2)}`).join(" ");
+  return <section className="separation-trace"><PanelHeading title="Recorded separation" meta={`Minimum ${model.data.metrics.minimum_separation_m.toFixed(1)} m`} /><svg role="img" aria-label="Recorded predicted separation remains above the eight metre limit" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none"><path className="limit" d={`M0 ${height - 16} H${width}`} /><polyline className="curve" points={points} fill="none" /></svg></section>;
+}
+
+function MetricCell({ label, value }: { label: string; value: string }) { return <div><span>{label}</span><strong>{value}</strong></div>; }
+function CompareRow({ label, left, right, emphasis = false }: { label: string; left: string; right: string; emphasis?: boolean }) { return <div className="compare-row"><span>{label}</span><b className={emphasis ? "blue-text" : ""}>{left}</b><b className={emphasis ? "amber-text" : ""}>{right}</b></div>; }
+function FleetRow({ unit, state, battery }: { unit: string; state: string; battery: number }) {
+  const level = battery <= 0.25 ? "low" : battery < 0.6 ? "medium" : "full";
+  return <tr><td>{unit}</td><td>{state.toLowerCase()}</td><td><i className={`battery ${level}`} aria-label={`${Math.round(battery * 100)} percent battery`} /> {Math.round(battery * 100)}%</td></tr>;
+}
+function Loading() { return <div className="loading-screen"><span /><strong>Loading fixed-seed replay</strong></div>; }
+function LoadError({ message }: { message: string }) { return <div className="load-error" role="alert"><strong>Replay unavailable</strong><span>{message}</span><button onClick={() => window.location.reload()}>Reload application</button></div>; }
