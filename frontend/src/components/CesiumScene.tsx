@@ -23,7 +23,7 @@ import {
 } from "cesium";
 import { Entity, ModelGraphics, Viewer, useCesium } from "resium";
 import type { ReplayModel, TrackSample, Vec3 } from "../replay";
-import { closestSafetyTelemetry, latestTargetTelemetry } from "../replay";
+import { closestSafetyTelemetry, latestAgentTelemetry, latestTargetTelemetry, sampleTrack } from "../replay";
 
 const ORIGIN = Cartesian3.fromDegrees(103.875, 1.245, 0);
 const LOCAL_TO_WORLD = Transforms.eastNorthUpToFixedFrame(ORIGIN);
@@ -63,7 +63,9 @@ function worldOrientation(position: Vec3, heading = 0) {
   return Transforms.headingPitchRollQuaternion(world(position), new HeadingPitchRoll(heading, 0, 0));
 }
 
-function WorldLoader({ mode, time, onTileState }: Pick<CesiumSceneProps, "mode" | "time" | "onTileState">) {
+type CameraStyle = "plan" | "horizon";
+
+function WorldLoader({ model, mode, time, cameraStyle, onTileState }: Pick<CesiumSceneProps, "model" | "mode" | "time" | "onTileState"> & { cameraStyle: CameraStyle }) {
   const { viewer } = useCesium();
 
   useEffect(() => {
@@ -111,6 +113,10 @@ function WorldLoader({ mode, time, onTileState }: Pick<CesiumSceneProps, "mode" 
   }, [viewer, onTileState]);
 
   const overviewPhase = time < 32 ? "launch" : "mission";
+  const identityEvent = model && mode === "identity" ? latestAgentTelemetry(model, time, "I000") : null;
+  const identityObserver = identityEvent?.agent_local?.estimated_position;
+  const identityTarget = identityEvent?.agent_local?.local_target_position;
+  const identityKey = identityEvent?.agent_local?.target_id ?? "pending";
   useEffect(() => {
     if (!viewer) return;
     const destinations: Record<SceneMode, { position: Vec3; heading: number; pitch: number }> = {
@@ -126,7 +132,40 @@ function WorldLoader({ mode, time, onTileState }: Pick<CesiumSceneProps, "mode" 
       safety: { position: [0, -2_800, 1_600], heading: 180, pitch: -75 },
       fleet: { position: [-700, -1_900, 1_500], heading: 24, pitch: -31 }
     };
-    const target = destinations[mode ?? "overview"];
+    let target = destinations[mode ?? "overview"];
+    if (mode === "identity" && identityObserver && identityTarget) {
+      const midpoint: Vec3 = [
+        (identityObserver[0] + identityTarget[0]) / 2,
+        (identityObserver[1] + identityTarget[1]) / 2,
+        (identityObserver[2] + identityTarget[2]) / 2
+      ];
+      const separation = Math.hypot(
+        identityObserver[0] - identityTarget[0],
+        identityObserver[1] - identityTarget[1],
+        identityObserver[2] - identityTarget[2]
+      );
+      if (cameraStyle === "plan") {
+        target = { position: [midpoint[0], midpoint[1] - separation * 0.21, midpoint[2] + Math.max(2_200, separation * 1.5)], heading: 0, pitch: -82 };
+      } else {
+        const range = Math.max(1_400, separation * 1.7);
+        const cameraPosition: Vec3 = [midpoint[0] + range, midpoint[1] + range * 0.12, midpoint[2] + Math.max(420, range * 0.18)];
+        const dx = midpoint[0] - cameraPosition[0];
+        const dy = midpoint[1] - cameraPosition[1];
+        target = {
+          position: cameraPosition,
+          heading: Math.atan2(dx, dy) * 180 / Math.PI,
+          pitch: -Math.atan2(cameraPosition[2] - midpoint[2], Math.hypot(dx, dy)) * 180 / Math.PI
+        };
+      }
+    } else if (cameraStyle === "horizon") {
+      if (mode === "overview") {
+        target = overviewPhase === "launch"
+          ? { position: [0, -700, 720], heading: 0, pitch: -16 }
+          : { position: [0, -4_200, 850], heading: 0, pitch: -14 };
+      } else {
+        target = { ...target, position: [target.position[0], target.position[1], Math.min(target.position[2], 900)], pitch: -16 };
+      }
+    }
     viewer.camera.setView({
       destination: world(target.position),
       orientation: {
@@ -135,7 +174,7 @@ function WorldLoader({ mode, time, onTileState }: Pick<CesiumSceneProps, "mode" 
         roll: 0
       }
     });
-  }, [viewer, mode, overviewPhase]);
+  }, [viewer, mode, overviewPhase, cameraStyle, identityKey]);
 
   return null;
 }
@@ -167,9 +206,9 @@ const label = (text: string, color = WHITE) => ({
   pixelOffset: new Cartesian2(0, -30),
   horizontalOrigin: HorizontalOrigin.CENTER,
   verticalOrigin: VerticalOrigin.BOTTOM,
-  distanceDisplayCondition: new DistanceDisplayCondition(0, 4200),
-  scaleByDistance: new NearFarScalar(500, 1, 4200, 0.85),
-  disableDepthTestDistance: 1200
+  distanceDisplayCondition: new DistanceDisplayCondition(0, 10000),
+  scaleByDistance: new NearFarScalar(500, 1, 10000, 0.72),
+  disableDepthTestDistance: Number.POSITIVE_INFINITY
 });
 
 const droneModel = (color: Color, scale = 1.2) => ({
@@ -179,7 +218,7 @@ const droneModel = (color: Color, scale = 1.2) => ({
   minimumPixelSize: 44,
   maximumScale: 20000,
   scale,
-  distanceDisplayCondition: new DistanceDisplayCondition(0, 7000),
+  distanceDisplayCondition: new DistanceDisplayCondition(0, 12000),
   silhouetteColor: color.withAlpha(0.92),
   silhouetteSize: 1.4
 });
@@ -255,7 +294,9 @@ function ReplayEntities({ model, time, mode, truthOverlay }: Required<Pick<Cesiu
   })) : [], [model]);
   const localSelection = useMemo(() => {
     if (!model || (mode !== "forward" && mode !== "observer" && mode !== "identity")) return null;
-    const event = latestTargetTelemetry(model, time, mode === "observer");
+    const event = mode === "identity"
+      ? latestAgentTelemetry(model, time, "I000")
+      : latestTargetTelemetry(model, time, mode === "observer");
     const agentId = event?.agent_local?.agent_id;
     const hostileId = event?.agent_local?.target_id;
     return agentId && hostileId ? { agentId, hostileId } : null;
@@ -273,11 +314,11 @@ function ReplayEntities({ model, time, mode, truthOverlay }: Required<Pick<Cesiu
     }
     return {
       ownSamples: own,
-      targetSamples: target,
-      own: own.length ? sampledPosition(own) : null,
-      target: target.length ? sampledPosition(target) : null
+      targetSamples: target
     };
   }, [model, localSelection]);
+  const localOwnPosition = localTracks ? sampleTrack(localTracks.ownSamples, time) : null;
+  const localTargetPosition = localTracks ? sampleTrack(localTracks.targetSamples, time) : null;
   const impacts = useMemo(() => model?.impacts
     .filter((impact) => time >= impact.time && time < impact.time + 1.5)
     .map((impact) => ({ ...impact, progress: (time - impact.time) / 1.5 })) ?? [], [model, time]);
@@ -294,19 +335,19 @@ function ReplayEntities({ model, time, mode, truthOverlay }: Required<Pick<Cesiu
     return (
       <>
         <SectorGeometry />
-        {localTracks?.own && localSelection && (
+        {localOwnPosition && localSelection && (
           <Entity
-            position={localTracks.own}
-            orientation={new VelocityOrientationProperty(localTracks.own)}
+            position={world(localOwnPosition)}
+            orientation={worldOrientation(localOwnPosition)}
             label={label(`${localSelection.agentId} · local INS`, FRIENDLY_SOFT)}
           >
-            <ModelGraphics {...droneModel(FRIENDLY)} />
+            <ModelGraphics {...droneModel(FRIENDLY, 2.4)} />
           </Entity>
         )}
-        {localTracks?.target && localSelection && (
-          <Entity position={localTracks.target} label={label(`${localSelection.hostileId} · ${localSelection.agentId} local track`, AMBER)}>
-            <Entity ellipsoid={{ radii: new Cartesian3(8, 8, 8), material: AMBER.withAlpha(0.22), outline: true, outlineColor: AMBER }} />
-            <Entity polyline={{ positions: localTracks.targetSamples.filter((sample) => sample.time <= time).slice(-60).map((sample) => world(sample.position)), width: 2, material: AMBER.withAlpha(0.72) }} />
+        {localTargetPosition && localSelection && (
+          <Entity position={world(localTargetPosition)} label={label(`${localSelection.hostileId} · ${localSelection.agentId} local track`, AMBER)}>
+            <Entity ellipsoid={{ radii: new Cartesian3(22, 22, 22), material: AMBER.withAlpha(0.28), outline: true, outlineColor: AMBER }} />
+            <Entity polyline={{ positions: localTracks?.targetSamples.filter((sample) => sample.time <= time).slice(-60).map((sample) => world(sample.position)), width: 2, material: AMBER.withAlpha(0.72) }} />
           </Entity>
         )}
       </>
@@ -425,6 +466,7 @@ const PROVENANCE: Record<SceneMode, string> = {
 };
 
 export function CesiumScene({ model, time, mode = "overview", truthOverlay = true, className, onTileState }: CesiumSceneProps) {
+  const [cameraStyle, setCameraStyle] = useState<CameraStyle>(mode === "identity" ? "horizon" : "plan");
   const [tileState, setTileState] = useState<"loading" | "ready" | "error">("loading");
   const handleTileState = useCallback((state: "loading" | "ready" | "error") => {
     setTileState(state);
@@ -450,7 +492,7 @@ export function CesiumScene({ model, time, mode = "overview", truthOverlay = tru
         shouldAnimate={false}
         showRenderLoopErrors={false}
       >
-        <WorldLoader mode={mode} time={time} onTileState={handleTileState} />
+        <WorldLoader model={model} mode={mode} time={time} cameraStyle={cameraStyle} onTileState={handleTileState} />
         <RenderOnTime time={time} />
         <ReplayEntities model={model} time={time} mode={mode} truthOverlay={truthOverlay} />
       </Viewer>
@@ -461,6 +503,10 @@ export function CesiumScene({ model, time, mode = "overview", truthOverlay = tru
           <span>Google Photorealistic 3D Tiles requires valid Cesium ion and Map Tiles credentials.</span>
         </div>
       )}
+      <div className="camera-style-toggle" role="group" aria-label="Camera orientation">
+        <button type="button" className={cameraStyle === "plan" ? "active" : ""} aria-pressed={cameraStyle === "plan"} onClick={() => setCameraStyle("plan")}>Top-down</button>
+        <button type="button" className={cameraStyle === "horizon" ? "active" : ""} aria-pressed={cameraStyle === "horizon"} onClick={() => setCameraStyle("horizon")}>Horizon</button>
+      </div>
       <div className="scene-provenance">{PROVENANCE[mode]}</div>
     </div>
   );

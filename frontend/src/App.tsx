@@ -37,6 +37,33 @@ const SCENARIOS: Array<{ id: ScenarioId; label: string }> = [
 
 const PLAYBACK_RATES = [0.5, 1, 2, 4] as const;
 const FOCUSED_VIEWS = new Set<ViewName>(["Identity", "Safety", "Fleet"]);
+interface DemoChapter {
+  id: string;
+  label: string;
+  time: number;
+  title: string;
+  explanation: string;
+  tone: "neutral" | "friendly" | "warning" | "critical";
+}
+
+const DEMO_CHAPTERS: DemoChapter[] = [
+  { id: "deploy", label: "Deploy", time: 0, title: "Coastal deployment", explanation: "24 interceptors launch from Singapore and climb through pre-cleared lanes. GNSS and every RF link are already denied.", tone: "friendly" },
+  { id: "grid", label: "Grid", time: 31.1, title: "Vertical picket established", explanation: "18 active cells hold the high ground while six reserve aircraft preserve depth for follow-on threats.", tone: "friendly" },
+  { id: "raid", label: "Sea raid", time: 32, title: "Twenty threats enter from sea", explanation: "Each interceptor builds its own noisy local tracks. There is no shared radar picture or assignment table.", tone: "warning" },
+  { id: "decide", label: "Decide", time: 45, title: "Coordination without messages", explanation: "Observed motion raises local P(covered), so nearby aircraft hold or choose uncovered threats instead of duplicating pursuit.", tone: "neutral" },
+  { id: "intercept", label: "Intercept", time: 75, title: "Terminal intercepts begin", explanation: "Lead aircraft dive toward predicted intercept baskets. RVO2-3D remains between guidance and actuation.", tone: "friendly" },
+  { id: "miss", label: "Miss", time: 78.9, title: "Lead miss — H001 survives", explanation: "I012 is expended, but H001 continues toward the protected corridor. No handoff message is sent.", tone: "critical" },
+  { id: "recover", label: "Recover", time: 83.2, title: "Private coverage expires", explanation: "The expected intercept window closes. I014 independently sees H001 survive and claims recovery after its local delay.", tone: "warning" },
+  { id: "close", label: "Re-engage", time: 99, title: "Observer recovery closes in", explanation: "I014 replans toward the surviving threat while other aircraft suppress duplicate claims by observing its motion.", tone: "friendly" },
+  { id: "return", label: "Return", time: 101.8, title: "Threat neutralized · return", explanation: "I014 neutralizes H001. Remaining aircraft reverse their recorded MEMS-INS routes to the Singapore coast.", tone: "friendly" }
+];
+
+function chapterAt(time: number) {
+  for (let index = DEMO_CHAPTERS.length - 1; index >= 0; index -= 1) {
+    if (time >= DEMO_CHAPTERS[index].time) return DEMO_CHAPTERS[index];
+  }
+  return DEMO_CHAPTERS[0];
+}
 
 function storyWindow(view: ViewName, model: ReplayModel) {
   if (view === "Identity") {
@@ -71,6 +98,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [truthOverlay, setTruthOverlay] = useState(true);
+  const [guided, setGuided] = useState(true);
   const animationFrame = useRef<number | null>(null);
   const previousTick = useRef<number | null>(null);
 
@@ -84,6 +112,28 @@ export default function App() {
   const duration = model?.duration ?? 1;
   const playbackEnabled = true;
   const focusedWindow = useMemo(() => model ? storyWindow(view, model) : null, [model, view]);
+  const activeChapter = chapterAt(time);
+  const selectChapter = useCallback((chapter: DemoChapter) => {
+    setScenarioId("full_demo");
+    setView("Scene");
+    setGuided(true);
+    setTime(chapter.time);
+    setPlaying(true);
+  }, []);
+  const toggleGuidedDemo = useCallback(() => {
+    if (guided) {
+      setGuided(false);
+      setPlaying(false);
+      return;
+    }
+    setScenarioId("full_demo");
+    setView("Scene");
+    setTime(0);
+    setPlaybackRate(1);
+    setTruthOverlay(true);
+    setGuided(true);
+    setPlaying(true);
+  }, [guided]);
 
   useEffect(() => {
     setTime(0);
@@ -169,25 +219,27 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand"><Layers3 aria-hidden="true" /><span>AirDnD</span></div>
-        {view === "Replay" ? (
+        {guided ? (
+          <DemoChapterNav active={activeChapter} onSelect={selectChapter} />
+        ) : view === "Replay" ? (
           <div className="comparison-label">Fixed comparison · Contact / Miss</div>
         ) : focusedWindow ? (
           <div className="comparison-label">{focusedWindow.label} · auto-focused loop</div>
         ) : (
           <div className="scenario-tabs" aria-label="Replay scenario">
             {SCENARIOS.map(({ id, label }) => (
-              <button key={id} className={scenarioId === id ? "active" : ""} aria-pressed={scenarioId === id} onClick={() => setScenarioId(id)}>{label}</button>
+              <button key={id} className={scenarioId === id ? "active" : ""} aria-pressed={scenarioId === id} onClick={() => { setGuided(false); setScenarioId(id); }}>{label}</button>
             ))}
           </div>
         )}
-        <div className="mode-label"><span className="mode-dot" />Fixed-seed replay</div>
+        <button type="button" className={`demo-mode ${guided ? "active" : ""}`} aria-pressed={guided} onClick={toggleGuidedDemo}><span className="mode-dot" />{guided ? "Exit guide" : "Run 2:29 demo"}</button>
       </header>
 
       <nav className="left-rail" aria-label="Primary views">
         {(Object.keys(VIEW_ICONS) as ViewName[]).map((name) => {
           const Icon = VIEW_ICONS[name];
           return (
-            <button key={name} aria-label={name} className={view === name ? "active" : ""} onClick={() => setView(name)} aria-current={view === name ? "page" : undefined}>
+            <button key={name} aria-label={name} className={view === name ? "active" : ""} onClick={() => { setView(name); if (name !== "Scene") setGuided(false); }} aria-current={view === name ? "page" : undefined}>
               <Icon aria-hidden="true" /><span>{name}</span>
             </button>
           );
@@ -203,6 +255,9 @@ export default function App() {
             time={time}
             truthOverlay={truthOverlay}
             setTruthOverlay={setTruthOverlay}
+            guided={guided}
+            chapter={activeChapter}
+            onChapterSelect={selectChapter}
           />
         )}
       </section>
@@ -213,7 +268,7 @@ export default function App() {
         playing={playing}
         enabled={playbackEnabled}
         playbackRate={playbackRate}
-        currentLabel={focusedWindow ? `${focusedWindow.label} · ${currentEvent?.presentation?.label ?? "recorded evidence"}` : currentEvent?.presentation?.label ?? "Replay ready"}
+        currentLabel={guided ? `${activeChapter.title} · ${currentEvent?.presentation?.label ?? "recorded evidence"}` : focusedWindow ? `${focusedWindow.label} · ${currentEvent?.presentation?.label ?? "recorded evidence"}` : currentEvent?.presentation?.label ?? "Replay ready"}
         onToggle={() => setPlaying((current) => !current)}
         onStep={step}
         onReset={() => { setPlaying(false); setTime(focusedWindow?.start ?? 0); }}
@@ -231,7 +286,22 @@ interface ViewRouterProps {
   time: number;
   truthOverlay: boolean;
   setTruthOverlay: (value: boolean) => void;
+  guided: boolean;
+  chapter: DemoChapter;
+  onChapterSelect: (chapter: DemoChapter) => void;
 }
+function DemoChapterNav({ active, onSelect }: { active: DemoChapter; onSelect: (chapter: DemoChapter) => void }) {
+  return (
+    <nav className="demo-chapters" aria-label="Guided demo chapters">
+      {DEMO_CHAPTERS.map((chapter, index) => (
+        <button key={chapter.id} type="button" className={chapter.id === active.id ? "active" : ""} aria-current={chapter.id === active.id ? "step" : undefined} onClick={() => onSelect(chapter)}>
+          <span>{String(index + 1).padStart(2, "0")}</span>{chapter.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 
 function ViewRouter(props: ViewRouterProps) {
   switch (props.view) {
@@ -244,14 +314,27 @@ function ViewRouter(props: ViewRouterProps) {
   }
 }
 
-function SceneView({ model, time, truthOverlay, setTruthOverlay }: ViewRouterProps) {
+function SceneView({ model, time, truthOverlay, setTruthOverlay, guided, chapter, onChapterSelect }: ViewRouterProps) {
   const [selectedAgent, setSelectedAgent] = useState("I000");
   const telemetry = latestAgentTelemetry(model, time, selectedAgent);
+  useEffect(() => {
+    if (!guided) return;
+    const chapterAgent = chapter.id === "miss"
+      ? "I012"
+      : ["recover", "close"].includes(chapter.id)
+        ? "I014"
+        : chapter.id === "return"
+          ? "I017"
+          : chapter.id === "intercept"
+            ? "I016"
+            : "I000";
+    setSelectedAgent(chapterAgent);
+  }, [chapter.id, guided]);
   return (
     <div className="view-grid scene-view">
       <div className="primary-canvas">
         <CesiumScene model={model} time={time} mode="overview" truthOverlay={truthOverlay} />
-        <PinnedComparison model={model} time={time} />
+        {guided ? <StoryGuide model={model} time={time} chapter={chapter} onChapterSelect={onChapterSelect} /> : <PinnedComparison model={model} time={time} />}
       </div>
       <aside className="inspector scene-inspector">
         <PanelHeading title="Decision inspector" meta="One agent · local state" />
@@ -266,6 +349,36 @@ function SceneView({ model, time, truthOverlay, setTruthOverlay }: ViewRouterPro
     </div>
   );
 }
+function StoryGuide({ model, time, chapter, onChapterSelect }: { model: ReplayModel; time: number; chapter: DemoChapter; onChapterSelect: (chapter: DemoChapter) => void }) {
+  const chapterIndex = DEMO_CHAPTERS.findIndex((item) => item.id === chapter.id);
+  const nextChapter = DEMO_CHAPTERS[chapterIndex + 1];
+  const neutralized = new Set(model.eventMarkers.filter((event) => event.kind === "neutralized" && event.time_s <= time).map((event) => event.truth.hostile_id).filter(Boolean)).size;
+  const actors = chapter.id === "miss"
+    ? "I012 → H001"
+    : ["recover", "close"].includes(chapter.id)
+      ? "I014 → H001"
+      : chapter.id === "return"
+        ? "I017 / I019 → COAST"
+        : `${model.data.config.interceptors} FRIENDLY · ${model.data.config.hostiles} HOSTILE`;
+
+  return (
+    <section className={`story-guide ${chapter.tone}`} aria-live="polite">
+      <article key={chapter.id}>
+        <header><span>Mission chapter {chapterIndex + 1} / {DEMO_CHAPTERS.length}</span><time>{formatTime(time)}</time></header>
+        <h1>{chapter.title}</h1>
+        <p>{chapter.explanation}</p>
+        <dl>
+          <div><dt>Focus</dt><dd>{actors}</dd></div>
+          <div><dt>Threats active</dt><dd>{model.data.config.hostiles - neutralized}</dd></div>
+          <div><dt>Neutralized</dt><dd>{neutralized}</dd></div>
+          <div><dt>RF messages</dt><dd>0</dd></div>
+        </dl>
+        {nextChapter && <button type="button" onClick={() => onChapterSelect(nextChapter)}>Next · {nextChapter.label}<span>{formatTime(nextChapter.time)}</span></button>}
+      </article>
+    </section>
+  );
+}
+
 
 function CamerasView({ model, time }: { model: ReplayModel; time: number }) {
   const lead = latestTargetTelemetry(model, time);
@@ -324,7 +437,7 @@ function ReplayView({ models, time }: { models: Partial<Record<ScenarioId, Repla
 }
 
 function IdentityView({ model, time }: { model: ReplayModel; time: number }) {
-  const event = latestTargetTelemetry(model, time);
+  const event = latestAgentTelemetry(model, time, "I000");
   const agent = event?.agent_local?.agent_id ?? "Awaiting observer";
   const target = event?.agent_local?.target_id ?? "Unclassified track";
   const classified = Boolean(event);
@@ -436,7 +549,7 @@ function PlaybackBar({ model, time, playing, currentLabel, enabled, playbackRate
           <div className="timeline-wrap">
             <input aria-label="Replay timeline" type="range" min="0" max={duration} step="0.1" value={Math.min(time, duration)} onChange={(event) => onSeek(Number(event.target.value))} style={{ "--progress": `${(time / duration) * 100}%` } as React.CSSProperties} />
             <div className="event-markers" aria-hidden="true">{markers.map((event, index) => <i key={`${event.kind}-${index}`} style={{ left: `${(event.time_s / duration) * 100}%` }} className={event.kind === "neutralized" ? "blue" : "amber"} />)}</div>
-            <span className="event-label"><span>{currentLabel}</span><b>{formatTime(time)} / {formatTime(duration)}</b></span>
+            <span className="event-label"><span>{currentLabel}</span><b>{formatTime(time)} / {formatDuration(duration)}</b></span>
           </div>
         </>
       ) : <div className="static-view-note">Replay controls remain available in operational views</div>}
@@ -447,6 +560,10 @@ function PlaybackBar({ model, time, playing, currentLabel, enabled, playbackRate
 
 function formatTime(value: number) {
   const seconds = Math.max(0, Math.floor(value));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+function formatDuration(value: number) {
+  const seconds = Math.max(0, Math.ceil(value));
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
