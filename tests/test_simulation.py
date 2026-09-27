@@ -248,6 +248,29 @@ def test_full_demo_covers_deployment_twenty_hostiles_impacts_and_return_to_base(
     assert kinds.count("expended") == 1
     assert kinds.count("return_to_base") == 3
     assert kinds.count("landed") == 3
+    deployment_starts = [
+        event.truth["from_position"]
+        for event in replay.events
+        if event.kind == "trajectory_step" and event.truth["state"] == "DEPLOYING"
+    ]
+    ingress_starts = [
+        event.truth["position"]
+        for event in replay.events
+        if event.kind == "threat_ingress"
+    ]
+    ingress_steps = [
+        event for event in replay.events
+        if event.kind == "hostile_trajectory_step"
+    ]
+    formation_positions = [
+        event.truth["position"]
+        for event in replay.events
+        if event.kind == "formation_occupied"
+    ]
+    assert deployment_starts and all(position[1] > 0.0 for position in deployment_starts[:24])
+    assert ingress_starts and all(position[1] < 0.0 for position in ingress_starts)
+    assert all(event.truth["to_position"][1] > event.truth["from_position"][1] for event in ingress_steps)
+    assert formation_positions and all(position[1] < 0.0 for position in formation_positions)
     assert replay.metrics.neutralized == 20
     assert replay.metrics.leaked == 0
     assert replay.metrics.completed

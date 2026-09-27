@@ -1114,11 +1114,11 @@ def _run_full_demo() -> SimulationResult:
     """Run the fixed-seed physical mission from launch through impact or DR-RTH."""
     from .mission import run_full_mission
 
-    mission = run_full_mission(2030)
+    mission = run_full_mission(2033)
     config = ScenarioConfig(
         hostiles=20,
         interceptors=24,
-        seed=2030,
+        seed=2033,
         method="airdnd",
         reserve_ratio=0.25,
         minimum_separation_m=8.0,

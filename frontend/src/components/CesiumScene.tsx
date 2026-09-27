@@ -114,13 +114,13 @@ function WorldLoader({ mode, onTileState }: Pick<CesiumSceneProps, "mode" | "onT
     if (!viewer) return;
     const destinations: Record<SceneMode, { position: Vec3; heading: number; pitch: number }> = {
       overview: { position: [220, -950, 390], heading: 0, pitch: -15 },
-      forward: { position: [-120, 130, 175], heading: 0, pitch: -2 },
-      observer: { position: [120, 550, 520], heading: 0, pitch: -68 },
+      forward: { position: [-120, -130, 175], heading: 0, pitch: -2 },
+      observer: { position: [120, -550, 520], heading: 0, pitch: -68 },
       contact: { position: [-300, -550, 400], heading: 10, pitch: -20 },
       miss: { position: [300, -550, 400], heading: -10, pitch: -20 },
       uncertainty: { position: [-400, -450, 420], heading: 16, pitch: -22 },
-      identity: { position: [0, 300, 210], heading: 0, pitch: -4 },
-      safety: { position: [-350, 50, 300], heading: 16, pitch: -18 },
+      identity: { position: [0, -300, 210], heading: 0, pitch: -4 },
+      safety: { position: [-350, -50, 300], heading: 16, pitch: -18 },
       fleet: { position: [-580, -600, 600], heading: 28, pitch: -27 }
     };
     const target = destinations[mode ?? "overview"];
@@ -191,19 +191,19 @@ function SectorGeometry() {
     <>
       {sectors.map((sector) => {
         const footprint = [
-          world([sector.x0, 50, 2]), world([sector.x1, 50, 2]), world([sector.x1, 900, 2]),
-          world([sector.x0, 900, 2]), world([sector.x0, 50, 2])
+          world([sector.x0, -50, 2]), world([sector.x1, -50, 2]), world([sector.x1, -900, 2]),
+          world([sector.x0, -900, 2]), world([sector.x0, -50, 2])
         ];
         return (
           <Entity key={sector.name}>
             <Entity polyline={{ positions: footprint, width: 1, material: FRIENDLY_SOFT.withAlpha(0.4) }} />
-            <Entity position={world([(sector.x0 + sector.x1) / 2, 70, 4])} label={label(sector.name, WHITE.withAlpha(0.8))} />
+            <Entity position={world([(sector.x0 + sector.x1) / 2, -70, 4])} label={label(sector.name, WHITE.withAlpha(0.8))} />
           </Entity>
         );
       })}
       {[-360, -120, 120, 360].map((x) => (
         <Entity key={`partition-${x}`} polyline={{
-          positions: [world([x, 50, 0]), world([x, 900, 0]), world([x, 900, 400]), world([x, 50, 400]), world([x, 50, 0])],
+          positions: [world([x, -50, 0]), world([x, -900, 0]), world([x, -900, 400]), world([x, -50, 400]), world([x, -50, 0])],
           width: 1,
           material: WHITE.withAlpha(0.18)
         }} />
@@ -211,7 +211,7 @@ function SectorGeometry() {
       {[170, 350].map((height) => (
         <Entity key={`layer-${height}`} polygon={{
           hierarchy: new PolygonHierarchy([
-            world([-360, 50, height]), world([360, 50, height]), world([360, 900, height]), world([-360, 900, height])
+            world([-360, -50, height]), world([360, -50, height]), world([360, -900, height]), world([-360, -900, height])
           ]),
           perPositionHeight: true,
           material: FRIENDLY.withAlpha(height === 170 ? 0.075 : 0.05),
@@ -219,8 +219,10 @@ function SectorGeometry() {
           outlineColor: FRIENDLY_SOFT.withAlpha(0.32)
         }} />
       ))}
-      <Entity position={world([-325, 120, 180])} label={label("Active layer", FRIENDLY_SOFT)} />
-      <Entity position={world([-300, 120, 360])} label={label("Reserve · observing", FRIENDLY_SOFT)} />
+      <Entity position={world([-325, -120, 180])} label={label("Active layer", FRIENDLY_SOFT)} />
+      <Entity position={world([-300, -120, 360])} label={label("Reserve · observing", FRIENDLY_SOFT)} />
+      <Entity position={world([0, 360, 20])} label={label("SINGAPORE · LAUNCH", FRIENDLY_SOFT)} />
+      <Entity position={world([0, -1250, 20])} label={label("SEA · HOSTILE INGRESS", CORAL)} />
     </>
   );
 }

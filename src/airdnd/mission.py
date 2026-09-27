@@ -119,8 +119,8 @@ class FullMissionSimulator:
             column = index % 8
             tier = index // 8
             x = -350.0 + column * 100.0 + (50.0 if tier % 2 else 0.0)
-            base = np.asarray((-430.0 + index * 37.5, -330.0 - (index % 3) * 18.0, 4.0))
-            grid = np.asarray((x, 300.0 + tier * 45.0, 250.0 + tier * 75.0))
+            base = np.asarray((-430.0 + index * 37.5, 330.0 + (index % 3) * 18.0, 4.0))
+            grid = np.asarray((x, -300.0 - tier * 45.0, 250.0 + tier * 75.0))
             if index == 23:
                 battery = 0.305
             else:
@@ -140,11 +140,11 @@ class FullMissionSimulator:
     def _build_threats(self) -> list[MissionThreat]:
         threats: list[MissionThreat] = []
         for index, x in enumerate(np.linspace(-440.0, 440.0, 20)):
-            velocity = np.asarray((self.rng.normal(0.0, 0.55), -19.0 - (index % 4) * 0.7, self.rng.normal(0.0, 0.08)))
+            velocity = np.asarray((self.rng.normal(0.0, 0.55), 19.0 + (index % 4) * 0.7, self.rng.normal(0.0, 0.08)))
             threats.append(
                 MissionThreat(
                     index=index,
-                    position=np.asarray((x, 1_480.0 + self.rng.normal(0.0, 12.0), 105.0 + (index % 5) * 20.0)),
+                    position=np.asarray((x, -1_480.0 + self.rng.normal(0.0, 12.0), 105.0 + (index % 5) * 20.0)),
                     velocity=velocity,
                     shared_condition=float(self.rng.normal(0.0, 0.045)),
                 )
@@ -187,7 +187,7 @@ class FullMissionSimulator:
             (float(np.linalg.norm(other.position - local_position)) for other in committed),
             default=SENSOR_RANGE_M,
         )
-        time_to_boundary = max(0.0, (local_position[1] - BOUNDARY_Y) / max(1.0, -threat.velocity[1]))
+        time_to_boundary = abs(local_position[1] - BOUNDARY_Y) / max(1.0, abs(threat.velocity[1]))
         nav = agent.navigator.state
         feature = np.asarray(
             (
@@ -234,7 +234,7 @@ class FullMissionSimulator:
             belief=belief,
             consequence=1.0 + 0.08 * (threat.index % 3),
             assigned_sector=agent.index == threat.index,
-            time_to_boundary_s=max(0.0, threat.position[1] / max(1.0, -threat.velocity[1])),
+            time_to_boundary_s=abs(threat.position[1] - BOUNDARY_Y) / max(1.0, abs(threat.velocity[1])),
             expenditure_cost=0.025,
             battery_cost=(1.0 - agent.battery) * 0.07,
             coverage_loss_cost=0.04 if agent.index < 18 else 0.01,
@@ -462,7 +462,7 @@ class FullMissionSimulator:
             safe *= max_speed / speed
         next_position = agent.position + safe * DT
         next_position[0] = float(np.clip(next_position[0], -650.0, 650.0))
-        next_position[1] = float(np.clip(next_position[1], -420.0, 1_650.0))
+        next_position[1] = float(np.clip(next_position[1], -1_650.0, 420.0))
         next_position[2] = float(np.clip(next_position[2], 4.0, 420.0))
         agent.position = next_position
         agent.velocity = safe
@@ -617,7 +617,7 @@ class FullMissionSimulator:
                 {"hostile_id": threat.id, "from_position": _v3(old), "to_position": _v3(threat.position), "state": "INGRESS"},
                 "hostile ingress",
             )
-            if threat.position[1] <= BOUNDARY_Y:
+            if threat.position[1] >= BOUNDARY_Y:
                 threat.leaked = True
                 threat.alive = False
                 self.add_event(time_s, "leaked", {"hostile_id": threat.id, "position": _v3(threat.position)}, "protected boundary breached")
@@ -727,5 +727,5 @@ class FullMissionSimulator:
         return MissionReplay(self.events, metrics)
 
 
-def run_full_mission(seed: int = 2030) -> MissionReplay:
+def run_full_mission(seed: int = 2033) -> MissionReplay:
     return FullMissionSimulator(seed).run()
