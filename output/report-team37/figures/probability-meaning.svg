@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-09-27T10:05:05.004791</dc:date>
+    <dc:date>2026-09-27T10:57:53.618210</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -32,12 +32,12 @@ z
    <g id="line2d_1">
     <path d="M 17.91936 45.161604 
 L 226.88064 45.161604 
-" clip-path="url(#p8a6b7920f7)" style="fill: none; stroke: #e3e8ec; stroke-width: 4; stroke-linecap: round"/>
+" clip-path="url(#pd9b003c609)" style="fill: none; stroke: #e3e8ec; stroke-width: 4; stroke-linecap: round"/>
    </g>
    <g id="line2d_2">
     <path d="M 17.91936 45.161604 
 L 185.088384 45.161604 
-" clip-path="url(#p8a6b7920f7)" style="fill: none; stroke: #29618b; stroke-width: 4; stroke-linecap: round"/>
+" clip-path="url(#pd9b003c609)" style="fill: none; stroke: #29618b; stroke-width: 4; stroke-linecap: round"/>
    </g>
    <g id="text_1">
     <!-- Generic binary event E -->
@@ -769,7 +769,7 @@ z
    </g>
    <g id="PathCollection_1">
     <defs>
-     <path id="m20392cee4c" d="M 0 3.162278 
+     <path id="macb818e845" d="M 0 3.162278 
 C 0.838646 3.162278 1.643056 2.82908 2.236068 2.236068 
 C 2.82908 1.643056 3.162278 0.838646 3.162278 0 
 C 3.162278 -0.838646 2.82908 -1.643056 2.236068 -2.236068 
@@ -781,14 +781,14 @@ C -1.643056 2.82908 -0.838646 3.162278 0 3.162278
 z
 " style="stroke: #29618b"/>
     </defs>
-    <g clip-path="url(#p8a6b7920f7)">
-     <use xlink:href="#m20392cee4c" x="185.088384" y="45.161604" style="fill: #29618b; stroke: #29618b"/>
+    <g clip-path="url(#pd9b003c609)">
+     <use xlink:href="#macb818e845" x="185.088384" y="45.161604" style="fill: #29618b; stroke: #29618b"/>
     </g>
    </g>
   </g>
  </g>
  <defs>
-  <clipPath id="p8a6b7920f7">
+  <clipPath id="pd9b003c609">
    <rect x="3.672" y="1.9872" width="237.456" height="94.8888"/>
   </clipPath>
  </defs>

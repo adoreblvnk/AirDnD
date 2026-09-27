@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-09-27T10:05:05.094446</dc:date>
+    <dc:date>2026-09-27T10:57:53.697419</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -40,7 +40,7 @@ Q 7.946208 14.532307 7.946208 16.13304
 L 7.946208 53.483472 
 Q 7.946208 55.084205 10.79568 55.084205 
 z
-" clip-path="url(#pe178cbdcb9)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
+" clip-path="url(#p22c7bb799a)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
     <path d="M 139.02192 55.084205 
@@ -53,7 +53,7 @@ Q 136.172448 14.532307 136.172448 16.13304
 L 136.172448 53.483472 
 Q 136.172448 55.084205 139.02192 55.084205 
 z
-" clip-path="url(#pe178cbdcb9)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
+" clip-path="url(#p22c7bb799a)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 10.79568 112.443797 
@@ -66,7 +66,7 @@ Q 7.946208 71.891899 7.946208 73.492632
 L 7.946208 110.843064 
 Q 7.946208 112.443797 10.79568 112.443797 
 z
-" clip-path="url(#pe178cbdcb9)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
+" clip-path="url(#p22c7bb799a)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 139.02192 112.443797 
@@ -79,7 +79,7 @@ Q 136.172448 71.891899 136.172448 73.492632
 L 136.172448 110.843064 
 Q 136.172448 112.443797 139.02192 112.443797 
 z
-" clip-path="url(#pe178cbdcb9)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
+" clip-path="url(#p22c7bb799a)" style="fill: #f0f5f8; stroke: #8d99a3; stroke-width: 0.65; stroke-linejoin: miter"/>
    </g>
    <g id="text_1">
     <!-- Observed scene -->
@@ -955,7 +955,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="pe178cbdcb9">
+  <clipPath id="p22c7bb799a">
    <rect x="3.672" y="2.7936" width="237.456" height="133.3944"/>
   </clipPath>
  </defs>

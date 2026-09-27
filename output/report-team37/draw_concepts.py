@@ -64,7 +64,7 @@ ax.scatter(*obs,s=115,marker='D',c=BLUE,zorder=5)
 ax.scatter(*inter,s=115,marker='D',c=BLUE,zorder=5)
 ax.scatter(*track,s=85,marker='o',c='#be7064',zorder=5)
 ax.text(5.3,8.35,'Observer',ha='center',fontsize=9,color=INK)
-ax.text(1.25,4.05,'Wider view',ha='left',fontsize=8,color=BLUE)
+ax.text(1.25,4.05,'Downward view',ha='left',fontsize=8,color=BLUE)
 ax.text(2.4,1.65,'Interceptor',ha='center',fontsize=8,color=INK)
 ax.text(8.15,1.65,'Tracked object',ha='center',fontsize=8,color=INK)
 ax.text(6.3,3.8,'Forward view',ha='center',fontsize=8,color=AMBER)
@@ -123,4 +123,28 @@ box(ax,.2,1.8,4.2,3.0,'Evidence quality\nAge / uncertainty / identity',size=6.9)
 box(ax,5.6,1.8,4.2,3.0,'Preloaded context\nSectors / boundaries',size=7.4)
 ax.text(5,.45,'Each aircraft maintains its own local view',ha='center',fontsize=7.4,color=BLUE)
 save(fig,'information-roles')
+
+# Three independent views of the same conceptual scene. Symbols convey
+# observation status; no shared state, targeting advice or measurements.
+fig,ax=frame(1.85)
+ax.text(5,9.55,'Same scene · separate local records',ha='center',fontsize=8,color=INK)
+objects=[(.65,6.6,'A'),(1.95,5.1,'B'),(1.15,3.6,'C')]
+states=[['seen','memory','unknown'],['memory','seen','seen'],['seen','unknown','seen']]
+for idx,x in enumerate([.12,3.48,6.84]):
+    panel=FancyBboxPatch((x,2.4),3.03,6.05,boxstyle='round,pad=0.02,rounding_size=0.12',lw=.65,edgecolor=GREY,facecolor='#fafcfd')
+    ax.add_patch(panel)
+    ax.text(x+1.515,7.75,'Drone '+str(idx+1),ha='center',fontsize=7.4,color=INK)
+    for (dx,y,label),state in zip(objects,states[idx]):
+        if state=='unknown':
+            ax.text(x+dx,y,'?',ha='center',va='center',fontsize=11,color=GREY)
+        else:
+            ax.add_patch(Circle((x+dx,y),.23,fc=BLUE if state=='seen' else 'none',ec=BLUE if state=='seen' else AMBER,lw=1.1,linestyle='solid' if state=='seen' else '--'))
+        ax.text(x+dx+.34,y,label,ha='left',va='center',fontsize=7,color=INK)
+ax.scatter([.48],[1.25],s=22,c=BLUE)
+ax.text(.78,1.25,'Visible',va='center',fontsize=7,color=INK)
+ax.add_patch(Circle((3.65,1.25),.17,fc='none',ec=AMBER,lw=1.0,linestyle='--'))
+ax.text(3.98,1.25,'Remembered',va='center',fontsize=7,color=INK)
+ax.text(7.75,1.25,'?',ha='center',va='center',fontsize=10,color=GREY)
+ax.text(8.05,1.25,'Unknown',va='center',fontsize=7,color=INK)
+save(fig,'separate-local-views')
 print('Created conceptual diagrams; all box labels fit.')

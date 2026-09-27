@@ -1,5 +1,17 @@
 # HUSH report revision
 
+- Observer/lifecycle clarification: Section III describes watching the active interceptor and tracked object, preserving local awareness and a conceptual backup role. Section IV clarifies that the Observer's camera view remains local. Table III gives proposed flight states and broad low-battery/abort return conditions; results move to Table IV. No autonomous attack triggers, dispatch-ranking procedure, predicted-miss capability or immediate response guarantee was added. The validation paragraph identifies the forced-miss replay's scope.
+
+## Pitch alignment revision
+
+Audience clarification: removed the current-users classification and identified intended users as government agencies developing defensive systems against threatening drones. The audience paragraph explicitly connects this task to jamming that makes GNSS, ground links and inter-drone radio unavailable, and identifies AirDnD as the simulation and evaluation prototype.
+
+Applied GNSS-denial wording, consistent HUSH/AirDnD naming, independently trained Jev-inspired model terminology, conceptual forecast meanings, the independent-greedy comparison used in the pitch, corrected runtime measurement and the proposed HIL/flight/integration roadmap. Input text now distinguishes numerical simulation histories from future sensor streams; the detailed targeting-feature inventory remains excluded. Report PDF and installed Word both remain three pages. AirDnD-pitch-aligned.pdf is a five-page copy with naming/evidence-label corrections; its source deck is unchanged. align_pitch.py reproduces the copy while preserving original vector artwork and font resources.
+
+## Ten-point editorial revision
+
+Applied all ten changes approved after the full Markdown review. Defined HUSH versus AirDnD, led with incomplete local views, clarified the conceptual figures, replaced Figure 4 with separate local records, converted input categories and scenarios to compact tables, explained training-label/runtime-input separation, distinguished probability evaluation from application scores, described frontend inspection, corrected current versus intended users, and consolidated validation scope. Added the stored paired leakage difference and its approximate confidence interval, and corrected the duplicate-event definition. Figures 3 and 4 use reproducible vector sources in draw_concepts.py. The current section map is in coverage-review.md.
+
 - Plain-English pass: clarified the initial 25% reserve share and the airborne Observer roles depicted in Figure 2. The percentage describes initial reserve allocation; the current number of Observers depends on temporary roles and visibility. Defined local belief, private coverage window, coverage gap, refill, held-out data, epochs, paired seeds, leakage and duplicates. Expanded MLP/GRU names and clarified proposed sensing and the browser display connection.
 
 - Corrected Figure 2's embedded label to "Position uncertainty" and explained the amber ellipsoid in its caption as schematic uncertainty in the tracked object's estimated position.

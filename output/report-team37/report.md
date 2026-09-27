@@ -2,139 +2,155 @@
 
 Team 37 — Joseph Poon, Lim Tze Kai, Lin Junyu, Alicia Tang
 
-Abstract—HUSH (Handoff Under Signal Hostility) explores how a swarm keeps working when radio coordination disappears. AirDnD combines local observation, short-term memory, learned beliefs and temporary Observer roles in an inspectable simulation. Collective-behaviour research motivates this concept. We connect its architecture and training to four evaluation scenarios: large swarms, intelligent coordination, concentrated waves and hit/miss outcomes. Initial software results guide further validation.
+Abstract—HUSH (Handoff Under Signal Hostility) explores coordination when radio links disappear. Each drone interprets its own incomplete view, remembers earlier observations and observes activity around it. AirDnD is the simulation prototype used to demonstrate and evaluate this concept. It combines local estimates, explicit application rules and temporary Observer roles. We present the architecture, offline training and four evaluation scenarios, followed by initial software results and next steps.
 
-Index Terms—HUSH, local observation, communication-free coordination, swarm simulation.
+Index Terms—HUSH, local observation, coordination without radio messages, swarm simulation.
 
-## I. PRIOR WORK AND OUR CONTRIBUTION
+## I. PROBLEM AND PRIOR WORK
 
-Track 3, Layer 03 concerns onboard autonomy under ground-link denial. AirDnD also assumes unavailable inter-drone radio links, making each aircraft dependent on its local view.
+Track 3, Layer 03 concerns onboard autonomy under ground-link denial. AirDnD assumes unavailable satellite navigation (GNSS), ground links and inter-drone radio. Different viewpoints and lost observations leave each drone with an incomplete picture.
 
-Reynolds demonstrated collective motion from local perception [1]. Muro et al. modelled wolf-pack coordination emerging without explicit communication or hierarchy [2]. Stander observed role specialisation in lion group hunts [3]. These studies motivate the analogy of group hunting and complementary roles. They provide distinct evidence from simulation and field observation; animal coordination can still involve observable social cues.
+Reynolds demonstrated collective motion from local perception [1]. Muro et al. modelled wolf-pack coordination emerging without explicit communication or hierarchy [2]. Stander observed role specialisation in lion group hunts [3]. These simulation and field studies motivate local observation and complementary roles. They provide a conceptual foundation for HUSH.
 
-HUSH combines each drone’s observation history, learned estimates and temporary Observer role under radio silence. Each drone keeps its own record of what it sees and remembers. We compare this approach with fixed assignments, independent greedy decisions and estimates produced by handwritten rules. The reported results come from simulation.
+## II. THE HUSH CONCEPT
 
-![Fig. 1. Software architecture. Offline preparation supplies the local model; execution produces logs for evaluator replay. ONNX/INT8 is a checked export branch.](figures/system-architecture.png)
+HUSH is the coordination concept; AirDnD is the simulation prototype used to demonstrate and evaluate it. Each drone keeps its own observation history and estimates what is happening. Shared rules are loaded beforehand. An ordinary drone may temporarily observe the scene from a different viewpoint. Coordination develops from local interpretation of visible activity, without radio instructions.
 
-We built a simulator, training pipeline and browser replay (Fig. 1). Autonomy evaluation teams and systems integrators use the prototype to trace outcomes back to local observations and beliefs, making communication-loss experiments easier to inspect and compare.
+![Fig. 1. Software architecture. Offline preparation supplies the local model. Execution produces logs for reviewer replay. ONNX/INT8 is a checked export branch.](figures/system-architecture.png)
 
-## II. FROM DEPLOYMENT TO OBSERVATION
+Intended users are government agencies developing defensive systems to intercept drones that pose a threat. The operating scenario assumes jamming makes GNSS, ground links and inter-drone radio unavailable. AirDnD’s simulator, training pipeline and replay support evaluation of HUSH in this environment.
 
-Figure 2 shows friendly drones in two roles: active interceptors in the lower layer and airborne reserves observing from above. An Observer is an ordinary friendly drone temporarily watching the scene. Each maintains its own observations; it sends no instructions to other drones.
+## III. DEPLOYMENT AND SENSING
 
-![Fig. 2. Conceptual altitude layers and sectors. Observers have a wider downward view. The amber ellipsoid illustrates uncertainty in a tracked object’s estimated position. Its size is schematic. Initial formation varies from this scene.](figures/concept-layers.png)
+An Observer is an ordinary friendly drone watching both an active interceptor and the tracked object. Its viewpoint preserves awareness when the active drone has a restricted forward view. The design allows an eligible Observer to become an active interceptor as a backup following a failed attempt. Each drone evaluates its role locally under preloaded rules, without a central dispatcher or radio handoff message.
 
-Initially, 25% of the total friendly fleet is held available as reserve. Figure 2 shows airborne reserves watching from the upper layer. Reserve describes availability; Observer describes the temporary sensing role of a drone that can see the relevant scene. The number of Observers changes during a run.
+![Fig. 2. Conceptual altitude layers and sectors. Drone counts are illustrative and do not depict the 25% reserve ratio. The amber ellipsoid shows schematic position uncertainty. Initial formation can differ from this scene.](figures/concept-layers.png)
 
-### A. Proposed sensing and onboard functions
+The specification initially holds 25% of the total friendly fleet available as reserve. Reserve describes availability; Observer describes a current sensing role. The upper layer illustrates airborne reserves watching the scene. The number acting as Observers changes with visibility and activity.
 
-Proposed onboard functions include a forward-looking camera, an accelerometer and gyroscope for motion sensing, a barometer for altitude, battery monitoring, a computer and flight control. A near-infrared beacon provides a proposed identity cue. This describes the sensing concept; hardware integration and a complete costed parts list remain future work.
+### A. Proposed onboard functions
 
-### B. What can pass between aircraft
+The sensing concept includes a forward-looking camera, an accelerometer and gyroscope for motion, a barometer for altitude, battery monitoring, a computer and flight control. A near-infrared (NIR) beacon provides an identity cue. Table I groups the information these functions would supply.
 
-Each drone labels and remembers the objects it observes. Drones exchange no radio messages about object locations, assignments or intended actions. The proposed optical beacon carries identity information only. The simulator sends logs to the browser so a person can inspect the replay. That display connection is outside the simulated aircraft network.
+### B. Information boundaries
 
-## III. ONE SCENE, DIFFERENT LOCAL VIEWS
+Each drone labels and remembers the objects it observes. Drones exchange zero radio messages about object locations, assignments or intended actions. The proposed NIR beacon carries identity information only. The simulator sends logs to the browser for inspection through a separate display connection outside the simulated aircraft network.
 
-Deployment only creates the opportunity to observe. A forward-facing camera loses sight of objects outside its field of view when the aircraft turns. An Observer may retain a wider view of the same scene. This difference, shown in Fig. 3, explains why HUSH needs both current observations and memory.
+## IV. ONE SCENE, DIFFERENT LOCAL VIEWS
 
-![Fig. 3. Conceptual line of sight. The Observer can see the lower pair while the interceptor has a narrower forward view. Dashed lines show sight lines; positions are schematic.](figures/local-visibility.png)
+A camera sees only the scene within its field of view. Turning can move an object out of sight while an Observer still sees it from another viewpoint (Fig. 3). The Observer’s record can preserve awareness of the event and its outcome. Its observations remain local; other drones receive no shared camera view.
 
-### A. Inputs and remembered evidence
+![Fig. 3. Viewpoint and line of sight. The upper drone looks downward; the lower drone looks forward. Visible ground area depends on viewpoint and orientation. Dashed lines show sight lines; the diagram assigns no different camera specification to the Observer.](figures/local-visibility.png)
 
-The proposed inputs describe four things: visible objects, the drone’s own condition, how reliable and recent each observation is, and its preloaded sectors and boundaries. Figure 4 groups these inputs. The current model uses a smaller set of numerical observations from recent simulation steps. Different views can therefore produce different estimates.
+### A. Local inputs and memory
 
-The simulator supplies numerical tracks and simplified navigation information. Camera recognition, full inertial sensing, optical beacon behaviour and physical battery performance are future validation work.
+TABLE I: SENSING AND CONTEXT CATEGORIES
 
-A local belief is a drone’s estimate based on its own observations. A private coverage window is a time-limited estimate that a previously observed task is already being handled. Losing sight of the scene makes that estimate less current. The replay should distinguish what is visible now, what is remembered and what is unknown.
+| Category | Meaning |
+|---|---|
+| Scene | Objects and activity visible to this drone |
+| Own state | Estimated motion, position and remaining energy |
+| Evidence quality | Observation age, uncertainty and identity status |
+| Preloaded context | Sectors, boundaries and shared rules |
 
-### B. Consistency when evidence is ambiguous
+The implemented model receives simulator-generated numerical observation histories. The proposed camera, inertial sensors and identity beacon form a future physical sensing pipeline. Table I groups sensing and context information; it is a conceptual overview. The numerical model uses a narrower representation of local observations and state.
 
-Tie-breaking applies a fixed rule when choices are nearly equal, so the same inputs give a repeatable result. Hysteresis prevents small changes in an estimate from causing repeated switching. Both mechanisms help keep decisions stable when observations are uncertain.
+A local belief summarises one drone’s evidence. A private coverage window is its temporary estimate that a previously observed task remains covered. Older evidence becomes less useful as the scene changes.
 
-The design specifies a three-count switching rule. A helper for this rule exists in the code, but the scenario runs initialise its state immediately. Those runs therefore do not demonstrate the full three-count behaviour. The rule remains part of the design being checked.
+Figure 4 distinguishes visible, remembered and unknown information. The same object can occupy different states in different drones’ records. A remembered observation therefore needs an age, while an unknown state preserves the absence of evidence.
 
-### C. From an expectation to an observed outcome
+### B. Consistency and inspection
 
-An Observer may still see an object after another drone has turned away. Its view can reveal that the visible outcome differs from what was expected. The fixed miss replay illustrates this difference and a subsequent role change. Section V explains what that example demonstrates.
+Tie-breaking applies a fixed rule when choices are nearly equal. Hysteresis limits repeated switching caused by small fluctuations in estimates. The specification includes a three-count switching rule; its current implementation status is summarised in Section VII.
 
-## IV. LEARNING THE LOCAL BELIEF MODEL
+The browser supports local perspectives, frame stepping and comparisons between drones. Local views hide evaluator truth by default; reviewers can enable a separate overlay. This makes differences in available information visible while replaying the same recorded event.
 
-These limited views define the role of the model: estimate aspects of the local situation from a short history. Jev, developed by TypeSafe AI, provides the conceptual reference for System One judgments with structured answers and probabilities [4]. AirDnD implements its own compact numerical model.
+![Fig. 4. Same conceptual scene, separate local records. A–C identify objects for the reader. Each drone has its own observations and identifiers; the panels exchange no records. Symbols distinguish current evidence, memory and missing information.](figures/separate-local-views.png)
 
-![Fig. 4. Information roles in the proposed local view. Camera, navigation and identity labels describe assumptions. Implemented model inputs are a narrower numerical representation.](figures/information-roles.png)
+## V. LEARNING AND CHECKING ESTIMATES
 
-### A. Why the simplified System One design
+Jev, developed by TypeSafe AI, provides the System One reference: structured judgments with probabilities [4]. AirDnD independently trains a compact model for HUSH. A multilayer perceptron (MLP) processes observations; a gated recurrent unit (GRU) summarises recent history. This numerical design supports local execution and inspection.
 
-A multilayer perceptron (MLP) processes the numerical observations. A gated recurrent unit (GRU) summarises recent observations. The model supplies estimates to explicit application rules. This compact design runs locally and makes inputs and outputs inspectable. AirDnD trains its own model; Jev supplies the conceptual reference.
+The flow is local history → model estimates → application rules. The model estimates leakage (an object passing the protected boundary), success of a simulated action, and friendly coverage (another drone completing the task). Each probability lies between 0 and 1. Position, timing and confidence estimates accompany these forecasts. Separate application rules consume the estimates.
 
-### B. Training, checking and export
+### A. Offline training and runtime inputs
 
-Simulation generates observation histories and reference answers for training, with OR-Tools supporting the assignment labels [5]. We use 256 training samples and 64 held-out samples kept separate from training. Training runs for 30 epochs, or passes through the training data. Held-out data use a different random seed and separate recorded streams.
+Offline training can use simulator reference information to construct answer labels, with OR-Tools supporting assignment labels [5]. The runtime model receives the drone’s numerical local history. Reference assignments and evaluator outcomes are excluded from that input. Figure 1 separates preparation from execution.
 
-Training loss decreases from 0.787 to 0.441; held-out loss decreases from 0.793 to 0.450. These results measure fit to synthetic examples. The pipeline saves PyTorch weights and checks ONNX/INT8 export on a finite batch. Scenario inference currently uses PyTorch; the INT8 export is 20,232 bytes.
+We train on 256 synthetic samples for 30 epochs, or passes through the training data. Another 64 samples are held out using a different random seed and separate recorded streams. Training loss falls from 0.787 to 0.441; held-out loss falls from 0.793 to 0.450. Lower loss means closer agreement with these synthetic reference answers.
 
-### C. What a probability means
+Scenario inference uses PyTorch. The pipeline also checks ONNX/INT8 export on a fixed verification batch; the INT8 file is 20,232 bytes.
 
-A 0–1 output estimates a named event from the available history. Application logic handles the eventual choice separately. Calibration checks whether similar forecasts match observed frequencies. For binary outcomes, we use the mean squared prediction-error form of the Brier score [6]:
+### B. Checking probability estimates
+
+Calibration asks whether similar forecasts match observed frequencies. The Brier score evaluates forecast error against recorded outcomes [6]:
 
 $$
 \mathrm{BS}=\frac{1}{N}\sum_{k=1}^{N}(\hat p_k-y_k)^2.
 $$
 
-Here $N$ counts examples, $\hat{p}_k$ is the forecast and $y_k$ is 1 when the event occurs and 0 otherwise. Lower scores indicate smaller error. Current calibration covers one output over a narrow probability range; broader checks are planned.
+Here $N$ counts examples, $\hat{p}_k$ is the forecast and $y_k$ equals 1 if the event occurs and 0 otherwise. A lower score means less prediction error. This formula evaluates forecast quality; application rules determine decisions separately.
 
-## V. FOUR SCENARIOS, ONE EVIDENCE STORY
+## VI. SCENARIOS AND INITIAL RESULTS
 
-The scenarios test the same chain: what is visible, what each aircraft believes, what the event log records, and whether coverage remains. Each case below states the evidence available from our prototype.
+The four scenarios examine the same sequence: local observations, estimates, recorded actions and outcomes. Table II separates recorded evidence from planned evaluation.
 
-### A. Big swarm — recorded benchmark
+TABLE II: FOUR SCENARIOS
 
-The main comparison uses 100 hostile objects and 125 friendly drones. Each method runs with the same 30 random seeds, allowing paired comparisons of the generated scenes. Separate scaling runs use 20 to 100 hostile objects. These runs show that the software executes at those sizes.
+| Scenario | Purpose | Evidence status |
+|---|---|---|
+| Big swarm | Software execution with 100 hostile objects and 125 friendly drones; scaling from 20 to 100 hostiles | Recorded benchmark |
+| Intelligent swarm | Friendly coordination from separate local views; comparison with handwritten estimates | Replay and benchmark |
+| Concentrated waves | Repeated arrivals concentrated in one area; comparison of initial reserve shares | Planned evaluation |
+| Hit and miss | Inspect local views and an Observer role change in success and miss examples | Fixed replays; first outcome forced |
 
-### B. Intelligence swarm — friendly coordination
+The proposed deployment sequence starts at a base, proceeds through departure to the assigned flight area, and includes return on low battery or an aborted operation (Table III). Observer is a temporary mission role; reserve describes availability. A coverage gap is reduced observation after departure; refill means occupying the vacant position.
 
-This case concerns HUSH’s friendly swarm coordinating from separate local views. The replay exposes local observations, private beliefs and recorded decisions. The learned-versus-handwritten comparison examines the contribution of learning; current leakage outcomes are identical for those two versions.
+TABLE III: PROPOSED FLIGHT STATES
 
-### C. Wave of concentrated swarm — proposed
+| State | Meaning |
+|---|---|
+| Docked | At base for readiness checks or recharging |
+| Departing | Launched and travelling to the assigned flight area |
+| On station | Airborne in the assigned area; may hold an Observer role |
+| Returning | Leaving the operation for base after low battery or abort |
+| Landed | Back at base, entering the docked state |
 
-This proposed scenario tests several arrivals concentrated in one area. The current simulator creates one initial group. A dedicated repeated-wave test remains planned, including comparisons of different initial reserve shares.
+### A. Recorded comparison
 
-### D. Hit and miss — fixed examples
+Each method uses the same 30 random seeds. Table IV reports means across those runs. Leakage is the percentage of hostile objects left unneutralised by the finite simulation.
 
-The archive contains a forced-first-success replay and a forced-first-miss recovery replay. They demonstrate recorded event sequences. The small fixed examples help explain the local views; reliability under varied physical conditions remains unmeasured.
-
-The proposed lifecycle also includes launch, reserve holding, replacement of empty positions and low-battery return to base. A coverage gap is an area with reduced observation after a drone leaves. Refill means occupying a vacated position. Short simulator runs cover parts of this lifecycle; sustained patrol and recharging remain to be evaluated.
-
-## VI. INITIAL COMPARISON
+TABLE IV: MEAN RESULTS OVER 30 RUNS
 
 | Method | Leakage (%) | Duplicates / run |
-|---|---:|---:|
+|---|---|---|
 | Naive static | 34.80 | 0.00 |
 | Independent greedy | 53.93 | 36.10 |
 | Handwritten beliefs | 25.13 | 25.23 |
 | AirDnD | 25.13 | 25.23 |
 | OR-Tools reference | 30.57 | 0.00 |
 
-Leakage is the percentage of hostile objects left unneutralised. Duplicates count additional simultaneous pursuits of the same object. AirDnD records 25.13% leakage, versus 34.80% for fixed assignments. Handwritten estimates give identical leakage in each run. Simple baselines initially use 94 aircraft; AirDnD considers all 125, so available resources differ.
+AirDnD records 25.13% leakage against 53.93% for independent greedy: a paired reduction of 28.8 percentage points (approximate 95% interval: 27.4–30.2), or 53.4% relative reduction. Against static allocation, the reduction is 9.67 points. Simple baselines initially use 94 aircraft while AirDnD considers all 125, so resource access differs. Handwritten estimates produce identical leakage in each paired run.
 
-## VII. COMPLETING THE PICTURE
+Duplicates count recorded additional commitments to the same object. An event can remain counted even when an earlier success prevents a later trajectory from executing. Pending Observer recovery attempts are excluded from this count.
 
-Identity also depends on available evidence. The concept distinguishes a confirmed friendly drone, a continuously tracked friendly drone, an unknown object and an object with hostile evidence. A missing identity signal leaves uncertainty. Appearance alone is insufficient when another drone has the same shape.
+On the Apple M3 host, the 30 AirDnD runs recorded zero friendly collisions and zero entity drops. The p95 scenario runtime normalised per interceptor was 19.04 ms, calculated as total scenario elapsed time divided by 125.
 
-ORCA supplies a supporting collision-avoidance layer after application decisions [7]. Its research project acknowledges partial DARPA funding. Its role supports separation while HUSH addresses coordination. Continuous physical safety still requires dedicated evidence.
+## VII. SCOPE AND NEXT STEPS
 
-### A. Validation scope
+### A. Identity and supporting safety
 
-The results describe software runs with simplified sensing and motion. The fixed miss replay illustrates an Observer role change; the main benchmark measures aggregate outcomes. Physical sensing, continuous flight, debris and recovery reliability are future validation tasks.
+The identity concept distinguishes confirmed friendly, continuously tracked friendly, unknown and hostile-evidence states. A missing identity signal leaves uncertainty; shape alone cannot identify a lookalike drone. ORCA supplies the supporting collision-avoidance layer [7]. Its research project acknowledges partial DARPA funding. HUSH addresses coordination through local information.
 
-### B. Value and continuation
+### B. Validation scope
 
-The immediate value is a repeatable way to study coordination when shared radio information disappears. Evaluators can inspect what each aircraft could observe, compare local beliefs and review the recorded outcome in one workflow. Next steps are repeated-wave evaluation, broader probability calibration, sensor realism and controlled non-weapon multi-robot safety studies. Deployment assessment would add costs and operating assumptions.
+Current evidence comes from simplified software scenes and synthetic observations. The three-count hysteresis helper exists, while scenario runs use immediate initialisation. Calibration covers one output over a narrow probability range. The fixed miss replay records a role change following a forced miss; it provides no validation of pre-miss recognition or immediate physical response. Concentrated waves, realistic sensing and identity signals, sustained patrol and recharging, continuous flight, debris and physical recovery reliability remain separate validation tasks.
 
-## VIII. CONCLUSION
+### C. Value and continuation
 
-HUSH brings deployment, local sensing, memory, learned beliefs and temporary Observer roles into one coordination concept. The prototype connects training to local execution and visual replay. Initial software results provide a starting point for evaluating the four scenarios and extending the evidence through representative trials.
+AirDnD links local observations, estimates and recorded outcomes for review. Next software checks cover concentrated waves, probability calibration and sensing. The proposed roadmap progresses to a five-node hardware-in-the-loop (HIL) testbed, controlled maritime flight trials and possible Singapore Armed Forces (SAF) integration. These future stages require validation and partner agreement.
+
+HUSH combines local observation, memory and temporary roles under radio silence. AirDnD makes this concept inspectable through training and replay.
 
 ## REFERENCES
 

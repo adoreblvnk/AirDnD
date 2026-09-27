@@ -93,9 +93,13 @@ ST={
 }
 W,H=A4;M=45.4;GAP=14.2;CW=(W-2*M-GAP)/2;BOTTOM=42.5;TOP=H-45.4
 
-def table_flow():
- cells=[[Paragraph(html.escape(s),ParagraphStyle('t',fontName='TNR-Bold' if ri==0 else 'TNR',fontSize=8,leading=9)) for s in row] for ri,row in enumerate(TABLE)]
- t=Table(cells,colWidths=[CW*.42,CW*.27,CW*.31]);t.setStyle(TableStyle([
+def table_spec(block):
+ if block[0]=='table':return 'TABLE IV<br/>MEAN RESULTS OVER 30 RUNS', [.42,.27,.31], TABLE
+ return block[1],block[2],block[3]
+
+def table_flow(rows,widths):
+ cells=[[Paragraph(html.escape(s),ParagraphStyle('t',fontName='TNR-Bold' if ri==0 else 'TNR',fontSize=8,leading=9.2)) for s in row] for ri,row in enumerate(rows)]
+ t=Table(cells,colWidths=[CW*w for w in widths]);t.setStyle(TableStyle([
  ('LINEABOVE',(0,0),(-1,0),.6,colors.black),('LINEBELOW',(0,0),(-1,0),.4,colors.black),('LINEBELOW',(0,-1),(-1,-1),.6,colors.black),
  ('LEFTPADDING',(0,0),(-1,-1),2),('RIGHTPADDING',(0,0),(-1,-1),2),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('VALIGN',(0,0),(-1,-1),'TOP')]))
  return t
@@ -120,9 +124,10 @@ for page in range(3):
     q=Paragraph(b[3],ST['caption']);_,hh=q.wrap(CW,1000);q.drawOn(pdf,x,y-hh);y-=hh+ST['caption'].spaceAfter
    elif typ=='eq':
     im=Image(str(equation_paths[b[1]]),width=CW,height=34.6);im.drawOn(pdf,x,y-34.6);y-=40
-   elif typ=='table':
-    q=Paragraph('TABLE I<br/>INITIAL SIMULATION COMPARISON',ParagraphStyle('tc',parent=ST['caption'],alignment=TA_CENTER));_,hh=q.wrap(CW,100);q.drawOn(pdf,x,y-hh);y-=hh+3
-    q=table_flow();_,hh=q.wrap(CW,1000);q.drawOn(pdf,x,y-hh);y-=hh+7
+   elif typ in ['table','grid']:
+    label,widths,rows=table_spec(b)
+    q=Paragraph(label,ParagraphStyle('tc',parent=ST['caption'],alignment=TA_CENTER));_,hh=q.wrap(CW,100);q.drawOn(pdf,x,y-hh);y-=hh+3
+    q=table_flow(rows,widths);_,hh=q.wrap(CW,1000);q.drawOn(pdf,x,y-hh);y-=hh+7
    else:
     sty=ST[typ];y-=sty.spaceBefore;q=Paragraph(pdf_inline_math(b[1]),sty);_,hh=q.wrap(CW,1500);q.drawOn(pdf,x,y-hh);y-=hh+sty.spaceAfter
   layout.append({'page':page+1,'column':col+1,'bottom_y':round(y,2),'remaining_pt':round(y-BOTTOM,2)})
@@ -158,14 +163,26 @@ for ci,blocks in enumerate(COLUMNS):
   elif typ=='eq':
    q=doc.add_paragraph();q.paragraph_format.space_after=Pt(4);q.paragraph_format.line_spacing=1
    q.add_run().add_picture(str(equation_paths[b[1]]),width=Pt(CW),height=Pt(34.6))
-  elif typ=='table':
-   q=doc.add_paragraph('TABLE I\nINITIAL SIMULATION COMPARISON');q.alignment=WD_ALIGN_PARAGRAPH.CENTER;q.paragraph_format.line_spacing=Pt(9.2)
+  elif typ in ['table','grid']:
+   label,widths,rows=table_spec(b)
+   q=doc.add_paragraph(label.replace('<br/>','\n'));q.alignment=WD_ALIGN_PARAGRAPH.CENTER;q.paragraph_format.line_spacing=Pt(9.2)
    for r in q.runs:r.font.size=Pt(8)
-   t=doc.add_table(rows=0,cols=3);t.autofit=False
-   for ri,row in enumerate(TABLE):
+   t=doc.add_table(rows=0,cols=len(widths));t.autofit=False
+   for col,width in zip(t.columns,widths):col.width=Pt(CW*width)
+   for ri,row in enumerate(rows):
     cells=t.add_row().cells
     for j,s in enumerate(row):
-     cells[j].width=Pt(CW*[.42,.27,.31][j]);q=cells[j].paragraphs[0];q.paragraph_format.line_spacing=Pt(9);q.paragraph_format.space_after=Pt(3);r=q.add_run(s);r.font.size=Pt(8);r.bold=ri==0
+     cells[j].width=Pt(CW*widths[j]);q=cells[j].paragraphs[0];q.paragraph_format.line_spacing=Pt(9.2);q.paragraph_format.space_after=Pt(3);r=q.add_run(s);r.font.size=Pt(8);r.bold=ri==0
+     props=cells[j]._tc.get_or_add_tcPr()
+     margins=OxmlElement('w:tcMar')
+     for side in ['left','right']:
+      node=OxmlElement('w:'+side);node.set(qn('w:w'),'40');node.set(qn('w:type'),'dxa');margins.append(node)
+     props.append(margins)
+     if ri in [0,len(rows)-1]:
+      borders=OxmlElement('w:tcBorders')
+      for side in (['top','bottom'] if ri==0 else ['bottom']):
+       node=OxmlElement('w:'+side);node.set(qn('w:val'),'single');node.set(qn('w:sz'),'4');node.set(qn('w:color'),'000000');borders.append(node)
+      props.append(borders)
    doc.add_paragraph().paragraph_format.space_after=Pt(2)
   else:
    q=doc.add_paragraph();word_inline_math(q,plain(b[1]));sty=ST[typ];q.paragraph_format.space_before=Pt(sty.spaceBefore);q.paragraph_format.space_after=Pt(sty.spaceAfter);q.paragraph_format.line_spacing=Pt(sty.leading)
@@ -183,8 +200,9 @@ for blocks in COLUMNS:
  for b in blocks:
   if b[0]=='fig':md.extend([f'![{b[3]}](figures/{b[1]})',''])
   elif b[0]=='eq':md.extend(['$$',b[1],'$$',''])
-  elif b[0]=='table':
-   md.extend(['| '+' | '.join(TABLE[0])+' |','|---|---:|---:|']+['| '+' | '.join(row)+' |' for row in TABLE[1:]]+[''])
+  elif b[0] in ['table','grid']:
+   label,widths,rows=table_spec(b)
+   md.extend([label.replace('<br/>',': '),'','| '+' | '.join(rows[0])+' |','|'+'|'.join(['---']*len(widths))+'|']+['| '+' | '.join(row)+' |' for row in rows[1:]]+[''])
   else:md.extend([('## ' if b[0]=='h' else '### ' if b[0]=='sub' else '')+plain(b[1]),''])
 (OUT/'report.md').write_text('\n'.join(md),encoding='utf-8')
 (OUT/'layout-check.json').write_text(json.dumps(layout,indent=2),encoding='utf-8')
