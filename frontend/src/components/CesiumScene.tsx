@@ -118,7 +118,7 @@ function WorldLoader({ mode, onTileState }: Pick<CesiumSceneProps, "mode" | "onT
       observer: { position: [120, -550, 520], heading: 0, pitch: -68 },
       contact: { position: [-300, -550, 400], heading: 10, pitch: -20 },
       miss: { position: [300, -550, 400], heading: -10, pitch: -20 },
-      uncertainty: { position: [-400, -450, 420], heading: 16, pitch: -22 },
+      uncertainty: { position: [0, -250, 420], heading: 180, pitch: -22 },
       identity: { position: [0, -300, 210], heading: 0, pitch: -4 },
       safety: { position: [-350, -50, 300], heading: 16, pitch: -18 },
       fleet: { position: [-580, -600, 600], heading: 28, pitch: -27 }
@@ -285,7 +285,7 @@ function ReplayEntities({ model, time, mode, truthOverlay }: Required<Pick<Cesiu
   const safeVelocity = safetyEvent?.agent_local?.safe_velocity;
   const localMode = mode === "forward" || mode === "observer" || mode === "identity";
 
-  if (mode === "uncertainty") return <UncertaintyEntities time={time} duration={model?.duration ?? 1} />;
+  if (mode === "uncertainty") return <UncertaintyEntities model={model} time={time} />;
 
   if (localMode) {
     return (
@@ -369,26 +369,41 @@ function ReplayEntities({ model, time, mode, truthOverlay }: Required<Pick<Cesiu
   );
 }
 
-function UncertaintyEntities({ time, duration }: { time: number; duration: number }) {
-  const age = Math.min(1, time / Math.max(duration * 0.65, 1));
-  const spread = 0.7 + age * 0.55;
-  const points: Array<{ position: Vec3; radii: Vec3; title: string }> = [
-    { position: [-230, 520, 170], radii: [25, 45, 18], title: "Last seen" },
-    { position: [-70, 650, 170], radii: [55 * spread, 90 * spread, 35 * spread], title: "Estimate" },
-    { position: [105, 770, 170], radii: [80 * spread, 135 * spread, 48 * spread], title: "Stale" },
-    { position: [285, 875, 170], radii: [28, 46, 20], title: "Reacquired" }
-  ];
+function UncertaintyEntities({ model, time }: { model: ReplayModel | null; time: number }) {
+  const telemetry = model ? latestTargetTelemetry(model, time) : null;
+  const agentId = telemetry?.agent_local?.agent_id;
+  const trail = useMemo(() => {
+    if (!model || !agentId) return [];
+    return model.data.events
+      .filter((event) => (
+        event.time_s <= time
+        && event.kind === "trajectory_step"
+        && event.agent_local?.agent_id === agentId
+        && event.agent_local.local_target_position
+      ))
+      .filter((_, index) => index % 8 === 0)
+      .slice(-40)
+      .map((event) => event.agent_local?.local_target_position as Vec3);
+  }, [agentId, model, time]);
+  const target = telemetry?.agent_local?.local_target_position ?? null;
+  const observer = telemetry?.agent_local?.estimated_position ?? null;
+  const covariance = telemetry?.agent_local?.covariance_diag ?? [4, 4, 4];
+  const confidence = telemetry?.agent_local?.belief?.confidence ?? 0.5;
+  const radii = new Cartesian3(
+    Math.max(8, Math.sqrt(covariance[0]) * 6 / Math.max(confidence, 0.2)),
+    Math.max(8, Math.sqrt(covariance[1]) * 6 / Math.max(confidence, 0.2)),
+    Math.max(6, Math.sqrt(covariance[2]) * 4 / Math.max(confidence, 0.2))
+  );
   return (
     <>
       <SectorGeometry />
-      {points.map(({ position, radii, title }) => (
-        <Entity key={title} position={world(position)} ellipsoid={{ radii: new Cartesian3(...radii), material: AMBER.withAlpha(0.12), outline: true, outlineColor: AMBER.withAlpha(0.7), subdivisions: 32 }} label={label(title, AMBER)} />
-      ))}
-      <Entity polyline={{ positions: points.map(({ position }) => world(position)), width: 2, material: WHITE.withAlpha(0.55) }} />
-      <Entity position={world([20, 540, 350])} orientation={worldOrientation([20, 540, 350])} label={label("Observer", FRIENDLY_SOFT)}><ModelGraphics {...droneModel(FRIENDLY)} /></Entity>
-      <Entity position={world([20, 540, 260])} cylinder={{ length: 180, topRadius: 4, bottomRadius: 115, material: FRIENDLY.withAlpha(0.08), outline: true, outlineColor: FRIENDLY.withAlpha(0.2) }} />
-      <Entity position={world([-90, 680, 170])} orientation={worldOrientation([-90, 680, 170])} label={label("Recorded", AMBER)}><ModelGraphics {...droneModel(AMBER)} /></Entity>
-      <Entity position={world([115, 610, 220])} box={{ dimensions: new Cartesian3(90, 80, 150), material: Color.fromCssColorString("#27343a").withAlpha(0.48), outline: true, outlineColor: WHITE.withAlpha(0.14) }} label={label("Occluded", WHITE.withAlpha(0.8))} />
+      {trail.length > 1 && <Entity polyline={{ positions: trail.map(world), width: 2, material: WHITE.withAlpha(0.55) }} />}
+      {target && (
+        <Entity position={world(target)} ellipsoid={{ radii, material: AMBER.withAlpha(0.12), outline: true, outlineColor: AMBER.withAlpha(0.7), subdivisions: 32 }} label={label(`Local covariance · ${Math.round(confidence * 100)}%`, AMBER)}>
+          <ModelGraphics {...droneModel(AMBER)} />
+        </Entity>
+      )}
+      {observer && <Entity position={world(observer)} orientation={worldOrientation(observer)} label={label(agentId ?? "Observer", FRIENDLY_SOFT)}><ModelGraphics {...droneModel(FRIENDLY)} /></Entity>}
     </>
   );
 }

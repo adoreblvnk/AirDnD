@@ -278,7 +278,7 @@ td { color: var(--muted); }
 .definition-rows dt { color: var(--dim); font-size: 10px; }.definition-rows dd { margin: 0; font-size: 11px; }
 .trace-panel { padding: 11px 14px; border-top: 1px solid var(--line); background: #0b151a; }
 .trace-panel svg { width: 100%; height: 95px; margin-top: 2px; overflow: visible; }
-.trace-panel path { fill: none; stroke: var(--blue); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.trace-panel path, .trace-panel polyline { fill: none; stroke: var(--blue); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .track-legend { display: grid; align-content: start; gap: 8px; padding: 12px 15px; border-left: 1px solid var(--line); border-top: 1px solid var(--line); background: #0b151a; color: var(--muted); font-size: 9px; }
 .track-legend .panel-heading { margin-bottom: 3px; }.track-legend span { display: flex; align-items: center; gap: 8px; }
 .envelope, .prediction, .recorded-line { display: inline-block; width: 30px; height: 9px; }

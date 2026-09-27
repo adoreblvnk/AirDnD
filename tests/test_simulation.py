@@ -280,6 +280,23 @@ def test_full_demo_covers_deployment_twenty_hostiles_impacts_and_return_to_base(
     assert replay.metrics.rf_ground_messages == 0
     assert replay.metrics.rf_interdrone_messages == 0
     assert replay.metrics.target_assignment_messages == 0
+    assert replay.metrics.decision_ticks >= 4_000
+    assert replay.metrics.belief_inferences > replay.metrics.decision_ticks
+    initial_claims = [
+        event
+        for event in replay.events
+        if event.kind == "mobilized" and event.truth["phase"] == "intercept"
+    ]
+    assert len(initial_claims) == 20
+    assert any(event.truth["interceptor_id"][1:] != event.truth["hostile_id"][1:] for event in initial_claims)
+    decision_steps = [
+        event
+        for event in replay.events
+        if event.kind == "trajectory_step" and event.agent_local["target_id"] is not None
+    ]
+    assert decision_steps
+    assert max(event.agent_local["hysteresis_ticks"] for event in decision_steps) > 0
+    assert {event.agent_local["neighbor_source"] for event in decision_steps} == {"noisy_local_tracks"}
     failed_attempts = [
         event for event in replay.events
         if event.kind == "engagement_attempt" and not event.truth["outcome"]
@@ -287,6 +304,13 @@ def test_full_demo_covers_deployment_twenty_hostiles_impacts_and_return_to_base(
     assert len(failed_attempts) == 1
     assert "coverage_expired" in kinds
     assert "observer_claim" in kinds
+    recovery_attempts = [
+        event
+        for event in replay.events
+        if event.kind == "engagement_attempt" and event.truth["hostile_id"] == failed_attempts[0].truth["hostile_id"]
+    ]
+    assert len(recovery_attempts) == 2
+    assert recovery_attempts[1].truth["success_probability"] < 0.98
     terminal_steps = [
         event for event in replay.events
         if event.kind == "trajectory_step"
@@ -310,6 +334,8 @@ def test_full_demo_covers_deployment_twenty_hostiles_impacts_and_return_to_base(
     returning = {event.truth["interceptor_id"] for event in replay.events if event.kind == "return_to_base"}
     landed = {event.truth["interceptor_id"] for event in replay.events if event.kind == "landed"}
     assert landed == returning
+    landing_events = [event for event in replay.events if event.kind == "landed"]
+    assert all(0.0 < event.agent_local["physical_dock_error_m"] <= 15.0 for event in landing_events)
     repeated = run_fixed_replay("full_demo")
     assert repeated.metrics == replay.metrics
     assert repeated.events == replay.events

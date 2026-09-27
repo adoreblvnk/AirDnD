@@ -252,7 +252,7 @@ function CamerasView({ model, time }: { model: ReplayModel; time: number }) {
 function ReplayView({ models, time }: { models: Partial<Record<ScenarioId, ReplayModel>>; time: number }) {
   const [mode, setMode] = useState<"outcome" | "uncertainty">("outcome");
   if (mode === "uncertainty") {
-    const model = models.miss_recovery ?? null;
+    const model = models.full_demo ?? models.miss_recovery ?? null;
     return (
       <div className="replay-detail-layout">
         <ViewHeading title="Replay" subtitle="Observation uncertainty" actions={<SubViewSwitch value={mode} onChange={setMode} />} />
@@ -262,7 +262,7 @@ function ReplayView({ models, time }: { models: Partial<Record<ScenarioId, Repla
           <DefinitionRows rows={[["Source", "Local"], ["Visibility", "Partial"], ["Identity", "Unknown"], ["Track age", "Stale"]]} amberRows={[2, 3]} />
           <SideElevation compact />
         </aside>
-        <SpeedTrace />
+        <SpeedTrace model={model} time={time} />
         <section className="track-legend"><PanelHeading title="Track legend" /><span><i className="envelope" />Track spread</span><span><i className="prediction" />Prediction envelope</span><span><i className="recorded-line" />Recorded trail</span><span>Confidence level —</span></section>
       </div>
     );
@@ -479,8 +479,26 @@ function DefinitionRows({ rows, amberRows = [] }: { rows: string[][]; amberRows?
   return <dl className="definition-rows">{rows.map(([term, value], index) => <div key={term}><dt>{term}</dt><dd className={amberRows.includes(index) ? "amber-text" : ""}>{value}</dd></div>)}</dl>;
 }
 
-function SpeedTrace() {
-  return <section className="trace-panel"><PanelHeading title="Recorded speed" /><svg role="img" aria-label="Recorded speed rises once then remains stable" viewBox="0 0 600 90" preserveAspectRatio="none"><path d="M0 72 C210 72 245 72 270 53 S320 18 365 18 L600 18" /></svg></section>;
+function SpeedTrace({ model, time }: { model: ReplayModel | null; time: number }) {
+  const latest = model ? latestTargetTelemetry(model, time) : null;
+  const agentId = latest?.agent_local?.agent_id;
+  const samples = useMemo(() => {
+    if (!model || !agentId) return [];
+    return model.data.events
+      .filter((event) => (
+        event.time_s <= time
+        && event.kind === "trajectory_step"
+        && event.agent_local?.agent_id === agentId
+        && event.agent_local.safe_velocity
+      ))
+      .filter((_, index) => index % 5 === 0)
+      .map((event) => {
+        const velocity = event.agent_local?.safe_velocity ?? [0, 0, 0];
+        return { time: event.time_s, speed: Math.hypot(...velocity) };
+      });
+  }, [agentId, model, time]);
+  const points = samples.map((sample) => `${(sample.time / Math.max(model?.duration ?? 1, 1)) * 600},${82 - Math.min(72, sample.speed / 66 * 72)}`).join(" ");
+  return <section className="trace-panel"><PanelHeading title="Recorded speed" meta={agentId ?? "No active local track"} /><svg role="img" aria-label="Recorded interceptor speed from replay telemetry" viewBox="0 0 600 90" preserveAspectRatio="none"><polyline points={points} fill="none" /></svg></section>;
 }
 
 function SeparationTrace({ model, time }: { model: ReplayModel; time: number }) {

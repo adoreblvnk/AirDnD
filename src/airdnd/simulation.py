@@ -55,6 +55,8 @@ class SimulationMetrics:
     rf_interdrone_messages: int
     target_assignment_messages: int
     safety_filter: str
+    decision_ticks: int = 0
+    belief_inferences: int = 0
 
 
 @dataclass(frozen=True)

@@ -24,6 +24,8 @@ export interface ReplayMetrics {
   rf_interdrone_messages: number;
   target_assignment_messages: number;
   safety_filter: string;
+  decision_ticks?: number;
+  belief_inferences?: number;
 }
 
 export interface Belief {
@@ -77,6 +79,7 @@ export interface ReplayEvent {
     heading_error_rad?: number;
     battery?: number;
     predicted_min_separation_m?: number | null;
+    neighbor_source?: string;
     navigation_mode?: string;
     decision?: string;
     rf_messages?: number;

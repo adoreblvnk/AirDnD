@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from .decision import Candidate, choose_candidate, claim_delay_s, mission_utility
+from .decision import Candidate, Hysteresis, choose_candidate, mission_utility
 from .guidance import (
     GuidanceLimits,
     official_rvo2_filter,
@@ -65,6 +65,11 @@ class MissionAgent:
     last_observed_target: np.ndarray | None = None
     last_intercept_basket: np.ndarray | None = None
 
+    hysteresis: Hysteresis = field(default_factory=Hysteresis)
+    pending_target_id: str | None = None
+    pending_ready_at: float | None = None
+    last_hysteresis_margin: float | None = None
+    competing_action: str | None = None
     @property
     def id(self) -> str:
         return f"I{self.index:03d}"
@@ -110,6 +115,8 @@ class FullMissionSimulator:
         self.duplicate_pursuits = 0
         self.last_time = 0.0
         self._completed_announced = False
+        self.decision_ticks = 0
+        self.belief_inferences = 0
         self.agents = self._build_agents()
         self.threats = self._build_threats()
 
@@ -169,92 +176,121 @@ class FullMissionSimulator:
             }
         )
 
-    def _belief_for(self, agent: MissionAgent, threat: MissionThreat, time_s: float) -> tuple[BeliefOutput, str]:
-        local_id = _local_id(agent.id, threat.id)
-        estimated_position = np.asarray(agent.navigator.state.position)
-        relative_truth = threat.position - agent.position
-        range_m = float(np.linalg.norm(relative_truth))
-        occluded = bool(self.rng.random() < 0.015 + 0.03 * (range_m / SENSOR_RANGE_M))
-        noise_std = 1.5 + 0.004 * range_m
-        local_position = estimated_position + relative_truth + self.rng.normal(0.0, noise_std, 3)
-        committed = [
-            other
-            for other in self.agents
-            if other.alive and other.target_id == threat.id and other.id != agent.id and other.state in {"INTERCEPTING", "RECOVERY_INTERCEPT"}
-        ]
-        visibly_covered = bool(committed) and not occluded
-        nearest_committed = min(
-            (float(np.linalg.norm(other.position - local_position)) for other in committed),
-            default=SENSOR_RANGE_M,
-        )
-        time_to_boundary = abs(local_position[1] - BOUNDARY_Y) / max(1.0, abs(threat.velocity[1]))
-        nav = agent.navigator.state
-        feature = np.asarray(
-            (
-                relative_truth[0] / 1000.0,
-                relative_truth[1] / 1500.0,
-                relative_truth[2] / 300.0,
-                threat.velocity[0] / 50.0,
-                threat.velocity[1] / 50.0,
-                threat.velocity[2] / 50.0,
-                range_m / 1500.0,
-                time_to_boundary / 60.0,
-                float(visibly_covered),
-                nearest_committed / 1500.0,
-                agent.battery,
-                math.sqrt(sum(nav.covariance_diag)) / 100.0,
-            ),
-            dtype=np.float32,
-        )
-        history = self.histories[(agent.id, local_id)]
-        history.append(feature)
-        while len(history) < 5:
-            history.appendleft(feature.copy())
+    def _candidate_batches(self, agents: list[MissionAgent], time_s: float) -> dict[str, list[tuple[MissionThreat, Candidate]]]:
+        observations: list[tuple[MissionAgent, MissionThreat, str, np.ndarray, np.ndarray, float, bool, float]] = []
+        sequences: list[np.ndarray] = []
+        for agent in agents:
+            estimated_position = np.asarray(agent.navigator.state.position)
+            nav = agent.navigator.state
+            for threat in self.threats:
+                if not threat.active or not threat.alive:
+                    continue
+                relative_truth = threat.position - agent.position
+                range_m = float(np.linalg.norm(relative_truth))
+                if range_m > SENSOR_RANGE_M:
+                    continue
+                local_id = _local_id(agent.id, threat.id)
+                noise_std = 1.5 + 0.004 * range_m
+                observed_relative = relative_truth + self.rng.normal(0.0, noise_std, 3)
+                local_position = estimated_position + observed_relative
+                observed_velocity = threat.velocity + self.rng.normal(0.0, 0.35 + range_m / 4_000.0, 3)
+                occluded = bool(self.rng.random() < 0.015 + 0.03 * (range_m / SENSOR_RANGE_M))
+                committed = [
+                    other
+                    for other in self.agents
+                    if other.alive
+                    and other.target_id == threat.id
+                    and other.id != agent.id
+                    and other.state in {"INTERCEPTING", "RECOVERY_INTERCEPT"}
+                ]
+                visibly_covered = bool(committed) and not occluded
+                nearest_committed = min(
+                    (float(np.linalg.norm(other.position - threat.position)) for other in committed),
+                    default=SENSOR_RANGE_M,
+                )
+                time_to_boundary = max(0.0, -local_position[1]) / max(1.0, observed_velocity[1])
+                feature = np.asarray(
+                    (
+                        observed_relative[0] / 1000.0,
+                        observed_relative[1] / 1500.0,
+                        observed_relative[2] / 300.0,
+                        observed_velocity[0] / 50.0,
+                        observed_velocity[1] / 50.0,
+                        observed_velocity[2] / 50.0,
+                        range_m / 1500.0,
+                        time_to_boundary / 60.0,
+                        float(visibly_covered),
+                        nearest_committed / 1500.0,
+                        agent.battery,
+                        math.sqrt(sum(nav.covariance_diag)) / 100.0,
+                    ),
+                    dtype=np.float32,
+                )
+                history = self.histories[(agent.id, local_id)]
+                history.append(feature)
+                while len(history) < 5:
+                    history.appendleft(feature.copy())
+                sequences.append(np.stack(history))
+                observations.append((agent, threat, local_id, local_position, observed_velocity, range_m, visibly_covered, time_to_boundary))
+        if not observations:
+            return {agent.id: [] for agent in agents}
         with torch.inference_mode():
-            learned = decode_beliefs(self.model(torch.from_numpy(np.stack(history)[None, ...])))[0]
-        closing_speed = max(12.0, 64.0 - float(np.linalg.norm(threat.velocity)))
-        intercept_time = min(time_to_boundary, range_m / closing_speed)
-        intercept_point = local_position + threat.velocity * intercept_time
-        belief = BeliefOutput(
-            learned.target_leak_probability,
-            learned.action_success_probability,
-            max(learned.friendly_coverage_probability, 0.88 if visibly_covered else 0.04),
-            intercept_time,
-            tuple(float(value) for value in intercept_point),
-            min(time_to_boundary, intercept_time + 4.2),
-            learned.confidence * math.exp(-range_m / 5_000.0),
-        )
-        return belief, local_id
+            learned_batch = decode_beliefs(self.model(torch.from_numpy(np.stack(sequences))))
+        self.belief_inferences += len(observations)
+        self.decision_ticks += len(agents)
+        result: dict[str, list[tuple[MissionThreat, Candidate]]] = {agent.id: [] for agent in agents}
+        for observation, learned in zip(observations, learned_batch, strict=True):
+            agent, threat, local_id, local_position, observed_velocity, range_m, visibly_covered, time_to_boundary = observation
+            closing_speed = max(12.0, 64.0 - float(np.linalg.norm(observed_velocity)))
+            intercept_time = min(time_to_boundary, range_m / closing_speed)
+            intercept_point = local_position + observed_velocity * intercept_time
+            belief = BeliefOutput(
+                learned.target_leak_probability,
+                learned.action_success_probability,
+                max(learned.friendly_coverage_probability, 0.88 if visibly_covered else 0.04),
+                intercept_time,
+                tuple(float(value) for value in intercept_point),
+                min(time_to_boundary, intercept_time + 4.2),
+                learned.confidence * math.exp(-range_m / 5_000.0),
+            )
+            candidate = Candidate(
+                track_id=local_id,
+                belief=belief,
+                consequence=1.0 + 0.08 * (threat.index % 3),
+                assigned_sector=abs(float(threat.position[0] - agent.grid[0])) <= 70.0,
+                time_to_boundary_s=time_to_boundary,
+                expenditure_cost=0.025,
+                battery_cost=(1.0 - agent.battery) * 0.07,
+                coverage_loss_cost=0.04 if agent.index < 18 else 0.01,
+                collision_cost=0.015 * sum(
+                    np.linalg.norm(other.position - agent.position) < 70.0
+                    for other in self.agents
+                    if other.alive and other.id != agent.id
+                ),
+                battery=agent.battery,
+            )
+            result[agent.id].append((threat, candidate))
+        return result
 
-    def _candidate(self, agent: MissionAgent, threat: MissionThreat, time_s: float) -> Candidate:
-        belief, local_id = self._belief_for(agent, threat, time_s)
-        agent.target_local_id = local_id
-        return Candidate(
-            track_id=local_id,
-            belief=belief,
-            consequence=1.0 + 0.08 * (threat.index % 3),
-            assigned_sector=agent.index == threat.index,
-            time_to_boundary_s=abs(threat.position[1] - BOUNDARY_Y) / max(1.0, abs(threat.velocity[1])),
-            expenditure_cost=0.025,
-            battery_cost=(1.0 - agent.battery) * 0.07,
-            coverage_loss_cost=0.04 if agent.index < 18 else 0.01,
-            collision_cost=0.015 * sum(
-                np.linalg.norm(other.position - agent.position) < 70.0
-                for other in self.agents
-                if other.alive and other.id != agent.id
-            ),
-            battery=agent.battery,
-        )
-
-    def _commit(self, agent: MissionAgent, threat: MissionThreat, time_s: float, recovery: bool) -> None:
-        candidate = self._candidate(agent, threat, time_s)
+    def _commit(
+        self,
+        agent: MissionAgent,
+        threat: MissionThreat,
+        candidate: Candidate,
+        time_s: float,
+        recovery: bool,
+    ) -> None:
         agent.target_id = threat.id
+        agent.target_local_id = candidate.track_id
         agent.current_belief = candidate.belief
         agent.current_utility = mission_utility(candidate)
         agent.committed_at = time_s
+        agent.pending_target_id = None
+        agent.pending_ready_at = None
+        agent.hysteresis.current_track = candidate.track_id
         agent.state = "RECOVERY_INTERCEPT" if recovery else "INTERCEPTING"
         threat.covered_by = agent.id
-        threat.coverage_expiry = time_s + candidate.belief.predicted_coverage_expiry
+        threat.coverage_expiry = time_s + max(8.0, candidate.belief.predicted_coverage_expiry)
         agent.current_cost_terms = {
             "expenditure": candidate.expenditure_cost,
             "battery": candidate.battery_cost,
@@ -270,7 +306,7 @@ class FullMissionSimulator:
             "cost_terms": agent.current_cost_terms,
             "trigger": "locally observed target survival" if recovery else "local mission utility",
             "decision": "INTERCEPT",
-            "selection_reason": "assigned sector, uncovered target, highest local mission utility",
+            "selection_reason": "all local candidates scored; sector and uncovered-target tie-breaks applied",
             "rf_messages": 0,
         }
         if recovery:
@@ -290,41 +326,105 @@ class FullMissionSimulator:
             local,
         )
 
-    def _evaluate_recovery(self, threat: MissionThreat, time_s: float) -> None:
+    def _decision_cycle(self, time_s: float) -> None:
+        if time_s < INGRESS_TIME:
+            return
+        observer_available = any(
+            agent.alive and agent.battery > 0.25 and agent.state in {"ON_STATION", "RESERVE"}
+            for agent in self.agents
+        )
         eligible = [
             agent
             for agent in self.agents
-            if agent.alive and agent.state in {"ON_STATION", "RESERVE"} and agent.battery > 0.29
+            if agent.alive
+            and agent.battery > 0.25
+            and agent.state in {"ON_STATION", "RESERVE", "RETURNING", "INTERCEPTING", "RECOVERY_INTERCEPT"}
+            and (agent.state != "RETURNING" or not observer_available)
         ]
-        if not eligible:
-            return
-        options: list[tuple[MissionAgent, Candidate]] = []
+        evaluations = self._candidate_batches(eligible, time_s)
         for agent in eligible:
-            if np.linalg.norm(agent.position - threat.position) > SENSOR_RANGE_M:
-                continue
-            options.append((agent, self._candidate(agent, threat, time_s)))
-        if not options:
-            return
-        delays = claim_delay_s([candidate for _, candidate in options])
-        winner, candidate = min(options, key=lambda item: delays[item[1].track_id])
-        self.add_event(
-            time_s,
-            "coverage_expired",
-            {"hostile_id": threat.id, "previous_interceptor_id": threat.covered_by},
-            "private coverage window expired",
-            {"agent_id": winner.id, "trigger": "surviving hostile observed", "claim_delay_s": delays[candidate.track_id]},
-        )
-        self._commit(winner, threat, time_s + delays[candidate.track_id], recovery=True)
-        for agent, losing_candidate in options:
-            if agent.id != winner.id:
-                self.add_event(
-                    time_s + delays[candidate.track_id] + 0.1,
-                    "claim_cancelled",
-                    {"interceptor_id": agent.id, "hostile_id": threat.id},
-                    "visible commitment cancels claim",
-                    {"agent_id": agent.id, "local_track_id": losing_candidate.track_id, "trigger": "friendly trajectory observed"},
+            options = evaluations[agent.id]
+            if agent.target_id:
+                current = next((item for item in options if item[0].id == agent.target_id), None)
+                if current is None:
+                    self._start_rth(agent, time_s, "local_target_track_lost")
+                    continue
+                current_threat, current_candidate = current
+                agent.current_belief = current_candidate.belief
+                agent.current_utility = mission_utility(current_candidate)
+                agent.target_local_id = current_candidate.track_id
+                current_threat.covered_by = agent.id
+                current_threat.coverage_expiry = time_s + max(4.2, current_candidate.belief.predicted_coverage_expiry)
+                alternatives = [item for item in options if item[0].id != current_threat.id]
+                if not alternatives:
+                    agent.competing_action = "HOLD"
+                    agent.last_hysteresis_margin = None
+                    continue
+                best_alternate = choose_candidate([candidate for _, candidate in alternatives])
+                alternate_pair = next(item for item in alternatives if item[1].track_id == best_alternate.track_id)
+                competing_threat, competing_candidate = alternate_pair
+                progress = min(
+                    1.0,
+                    max(0.0, (time_s - (agent.committed_at or time_s)) / max(current_candidate.belief.predicted_intercept_time, 0.1)),
                 )
-        threat.coverage_expiry = None
+                agent.last_hysteresis_margin = 0.05 + 0.10 * progress
+                agent.competing_action = f"INTERCEPT {competing_threat.id}"
+                terminal_lock = current_candidate.belief.predicted_intercept_time <= 3.2
+                should_switch = False if terminal_lock else agent.hysteresis.consider(
+                    competing_candidate.track_id,
+                    mission_utility(competing_candidate),
+                    agent.current_utility,
+                    progress,
+                    False,
+                )
+                if should_switch:
+                    if current_threat.covered_by == agent.id:
+                        current_threat.covered_by = None
+                        current_threat.coverage_expiry = None
+                    self.add_event(
+                        time_s,
+                        "target_switched",
+                        {"interceptor_id": agent.id, "from_hostile_id": current_threat.id, "hostile_id": competing_threat.id},
+                        "three-tick utility hysteresis satisfied",
+                        {
+                            "agent_id": agent.id,
+                            "local_track_id": competing_candidate.track_id,
+                            "hysteresis_margin": agent.last_hysteresis_margin,
+                            "hysteresis_ticks": 3,
+                        },
+                    )
+                    self._commit(agent, competing_threat, competing_candidate, time_s, competing_threat.attempt_count > 0)
+                continue
+            if agent.state == "RESERVE" and time_s < INGRESS_TIME + 2.0:
+                continue
+            if not options:
+                continue
+            threat, candidate = next(
+                item for item in options if item[1].track_id == choose_candidate([value for _, value in options]).track_id
+            )
+            if mission_utility(candidate) <= 0.0 or candidate.belief.friendly_coverage_probability >= 0.5:
+                agent.pending_target_id = None
+                agent.pending_ready_at = None
+                continue
+            if agent.pending_target_id != threat.id:
+                if agent.pending_target_id is not None:
+                    self.add_event(
+                        time_s,
+                        "claim_cancelled",
+                        {"interceptor_id": agent.id, "hostile_id": agent.pending_target_id},
+                        "visible commitment changes local preference",
+                        {"agent_id": agent.id, "trigger": "observed_friendly_commitment"},
+                    )
+                agent.pending_target_id = threat.id
+                agent.pending_ready_at = time_s + 0.15 * (agent.index // 8) + 0.01 * (agent.index % 8)
+                continue
+            if agent.pending_ready_at is None or time_s < agent.pending_ready_at:
+                continue
+            if threat.covered_by is not None:
+                agent.pending_target_id = None
+                agent.pending_ready_at = None
+                continue
+            self._commit(agent, threat, candidate, time_s, threat.attempt_count > 0)
 
     def _start_rth(self, agent: MissionAgent, time_s: float, reason: str) -> None:
         if agent.state in {"RETURNING", "LANDED"} or not agent.alive:
@@ -404,7 +504,7 @@ class FullMissionSimulator:
                 target_position = np.asarray(agent.rth_waypoints[agent.rth_index])
             displacement = target_position - estimated_position
             distance_to_waypoint = float(np.linalg.norm(displacement))
-            preferred = np.zeros(3) if distance_to_waypoint < 1e-6 else displacement * (min(32.0, distance_to_waypoint / 2.0) / distance_to_waypoint)
+            preferred = np.zeros(3) if distance_to_waypoint < 1e-6 else displacement * (min(36.0, distance_to_waypoint / 2.0) / distance_to_waypoint)
             preferred[2] = float(np.clip(preferred[2], -10.0, 10.0))
             agent.replanning_count += 1
             agent.last_guidance_mode = "reverse_ins_waypoint"
@@ -423,19 +523,28 @@ class FullMissionSimulator:
 
     def _safe_command(self, agent: MissionAgent, preferred: np.ndarray) -> np.ndarray:
         neighbors: list[tuple[tuple[float, float, float], tuple[float, float, float], str]] = []
+        estimated_position = np.asarray(agent.navigator.state.position)
+        estimated_velocity = np.asarray(agent.navigator.state.velocity)
         for other in self.agents:
             if not other.alive or other.id == agent.id:
                 continue
-            distance = float(np.linalg.norm(other.position - agent.position))
+            relative_truth = other.position - agent.position
+            distance = float(np.linalg.norm(relative_truth))
             if distance <= 230.0:
                 beacon_valid = bool(self.rng.random() > 0.04 + distance / 5_000.0)
                 identity = self.iff.update(lineage=True, beacon_valid=beacon_valid, beacon_bound=beacon_valid, hostile_evidence=False)
-                neighbors.append((tuple(other.position), tuple(other.velocity), identity.value))
+                observed_position = estimated_position + relative_truth + self.rng.normal(0.0, 0.7 + distance / 400.0, 3)
+                observed_velocity = other.velocity + self.rng.normal(0.0, 0.22, 3)
+                neighbors.append((tuple(observed_position), tuple(observed_velocity), identity.value))
         for threat in self.threats:
-            if threat.active and threat.alive and np.linalg.norm(threat.position - agent.position) <= 230.0:
-                neighbors.append((tuple(threat.position), tuple(threat.velocity), "HOSTILE EVIDENCE"))
+            relative_truth = threat.position - agent.position
+            distance = float(np.linalg.norm(relative_truth))
+            if threat.active and threat.alive and distance <= 230.0:
+                observed_position = estimated_position + relative_truth + self.rng.normal(0.0, 1.2 + distance / 300.0, 3)
+                observed_velocity = threat.velocity + self.rng.normal(0.0, 0.3, 3)
+                neighbors.append((tuple(observed_position), tuple(observed_velocity), "HOSTILE EVIDENCE"))
         result = official_rvo2_filter(
-            tuple(agent.position), tuple(agent.velocity), tuple(preferred), neighbors,
+            tuple(estimated_position), tuple(estimated_velocity), tuple(preferred), neighbors,
             MIN_SEPARATION_M, 4.0, DT, 66.0,
         )
         agent.last_safety_override = result.override
@@ -452,11 +561,11 @@ class FullMissionSimulator:
         if agent.state == "RETURNING":
             velocity_delta = preferred - agent.velocity
             delta_norm = float(np.linalg.norm(velocity_delta))
-            if delta_norm > 3.0:
-                preferred = agent.velocity + velocity_delta * (3.0 / delta_norm)
+            if delta_norm > 5.0:
+                preferred = agent.velocity + velocity_delta * (5.0 / delta_norm)
             agent.last_preferred_velocity = preferred
         safe = self._safe_command(agent, preferred)
-        max_speed = 36.0 if agent.state == "RETURNING" else 66.0
+        max_speed = 40.0 if agent.state == "RETURNING" else 66.0
         speed = float(np.linalg.norm(safe))
         if speed > max_speed:
             safe *= max_speed / speed
@@ -504,6 +613,7 @@ class FullMissionSimulator:
                 "preferred_velocity": _v3(agent.last_preferred_velocity),
                 "safe_velocity": _v3(agent.last_safe_velocity),
                 "safety_override": agent.last_safety_override,
+                "neighbor_source": "noisy_local_tracks",
                 "safety_filter": "snape/RVO2-3D",
                 "predicted_min_separation_m": None if math.isinf(agent.last_min_separation) else round(agent.last_min_separation, 4),
                 "replanning_count": agent.replanning_count,
@@ -517,10 +627,10 @@ class FullMissionSimulator:
                 "utility": round(agent.current_utility, 6) if agent.target_id else None,
                 "battery": round(agent.battery, 5),
                 "cost_terms": agent.current_cost_terms if agent.target_id else None,
-                "selection_reason": "assigned sector, uncovered target, highest local mission utility" if agent.target_id else None,
-                "hysteresis_margin": round(0.05 + 0.10 * min(1.0, max(0.0, (time_s - (agent.committed_at or time_s)) / max(agent.current_belief.predicted_intercept_time if agent.current_belief else 1.0, 0.1))), 5) if agent.target_id else None,
-                "competing_action": "HOLD" if agent.target_id else None,
-                "hysteresis_ticks": 0 if agent.target_id else None,
+                "selection_reason": "all local candidates scored; sector and uncovered-target tie-breaks applied" if agent.target_id else None,
+                "hysteresis_margin": round(agent.last_hysteresis_margin, 5) if agent.target_id and agent.last_hysteresis_margin is not None else None,
+                "competing_action": agent.competing_action if agent.target_id else None,
+                "hysteresis_ticks": agent.hysteresis.consecutive_ticks if agent.target_id else None,
                 "recovery_waypoint": _v3(agent.rth_waypoints[min(agent.rth_index, len(agent.rth_waypoints) - 1)]) if agent.state == "RETURNING" and agent.rth_waypoints else None,
             },
         )
@@ -548,10 +658,9 @@ class FullMissionSimulator:
             closing = float(np.linalg.norm(agent.velocity - threat.velocity))
             nav_uncertainty = math.sqrt(sum(agent.navigator.state.covariance_diag))
             geometry = max(0.0, 1.0 - separation / 11.0)
-            probability = float(np.clip(0.93 + 0.03 * geometry + 0.0005 * min(closing, 60.0) + threat.shared_condition - 0.001 * nav_uncertainty, 0.89, 0.99))
-            if threat.attempt_count > 1:
-                probability = max(probability, 0.98)
-            draw = float(self.rng.random())
+            probability = float(np.clip(0.91 + 0.025 * geometry + 0.0004 * min(closing, 60.0) + threat.shared_condition - 0.001 * nav_uncertainty, 0.86, 0.97))
+            draw_digest = hashlib.sha256(f"n19:{self.seed}:{threat.index}:{threat.attempt_count}".encode()).hexdigest()
+            draw = int(draw_digest[:16], 16) / 2**64
             success = draw < probability
             position = (agent.position + threat.position) / 2.0
             self.add_event(
@@ -642,49 +751,67 @@ class FullMissionSimulator:
             for threat in self.threats:
                 threat.active = True
                 self.add_event(time_s, "threat_ingress", {"hostile_id": threat.id, "position": _v3(threat.position)}, "hostile ingress")
-            for index in range(18):
-                agent = self.agents[index]
-                if agent.alive and agent.state in {"ON_STATION", "RESERVE"}:
-                    self._commit(agent, self.threats[index], time_s, recovery=False)
-        if time_s == INGRESS_TIME + 4.0:
-            for index in (18, 19):
-                agent = self.agents[index]
-                threat = self.threats[index]
-                if agent.alive and threat.alive and agent.state in {"ON_STATION", "RESERVE"}:
-                    self._commit(agent, threat, time_s, recovery=False)
         for threat in self.threats:
             if threat.alive and threat.coverage_expiry is not None and time_s >= threat.coverage_expiry:
-                lead = next((agent for agent in self.agents if agent.id == threat.covered_by and agent.alive), None)
+                previous = threat.covered_by
+                lead = next((agent for agent in self.agents if agent.id == previous and agent.alive), None)
                 if lead is not None and lead.state in {"INTERCEPTING", "RECOVERY_INTERCEPT"}:
                     self._start_rth(lead, time_s, "expired_intercept_window")
-                self._evaluate_recovery(threat, time_s)
+                threat.covered_by = None
+                threat.coverage_expiry = None
+                self.add_event(
+                    time_s,
+                    "coverage_expired",
+                    {"hostile_id": threat.id, "previous_interceptor_id": previous},
+                    "private coverage window expired",
+                    {"trigger": "surviving hostile observed"},
+                )
         for agent in self.agents:
             if agent.alive and agent.state not in {"RETURNING", "LANDED", "DEPLOYING", "INTERCEPTING", "RECOVERY_INTERCEPT"} and agent.battery <= 0.25:
                 self._start_rth(agent, time_s, "critical_battery_abort")
+        active_threats = [threat for threat in self.threats if threat.active and threat.alive]
+        if active_threats and all(threat.covered_by is not None for threat in active_threats):
+            idle_agents = [
+                agent
+                for agent in self.agents
+                if agent.alive and agent.state in {"ON_STATION", "RESERVE"} and agent.target_id is None
+            ]
+            for agent in idle_agents[:-1]:
+                self._start_rth(agent, time_s, "all_observed_tracks_covered")
         threats_resolved = all(not threat.alive for threat in self.threats)
         if threats_resolved:
             for agent in self.agents:
                 if agent.alive and agent.state in {"ON_STATION", "RESERVE"}:
                     self._start_rth(agent, time_s, "mission_complete")
         for agent in self.agents:
-            if agent.alive and agent.state == "RETURNING" and np.linalg.norm(agent.position - agent.base) < 14.0:
-                agent.position = agent.base.copy()
-                agent.velocity[:] = 0.0
-                agent.state = "LANDED"
-                self.add_event(
-                    time_s,
-                    "landed",
-                    {"interceptor_id": agent.id, "position": _v3(agent.position), "battery": round(agent.battery, 5)},
-                    "recovered at coastal base",
-                    {"agent_id": agent.id, "navigation_mode": "reverse_mems_ins_dead_reckoning", "estimated_position": _v3(agent.navigator.state.position)},
-                )
-
+            if agent.alive and agent.state == "RETURNING":
+                estimated_position = np.asarray(agent.navigator.state.position)
+                estimated_base = np.asarray(agent.navigator.path_memory[0])
+                estimated_distance = float(np.linalg.norm(estimated_position - estimated_base))
+                true_distance = float(np.linalg.norm(agent.position - agent.base))
+                if estimated_distance <= 4.0 and true_distance <= 15.0 and np.linalg.norm(agent.velocity) <= 2.5:
+                    agent.velocity[:] = 0.0
+                    agent.state = "LANDED"
+                    self.add_event(
+                        time_s,
+                        "landed",
+                        {"interceptor_id": agent.id, "position": _v3(agent.position), "battery": round(agent.battery, 5)},
+                        "recovered at coastal base",
+                        {
+                            "agent_id": agent.id,
+                            "navigation_mode": "reverse_mems_ins_dead_reckoning",
+                            "estimated_position": _v3(agent.navigator.state.position),
+                            "estimated_dock_error_m": round(estimated_distance, 4),
+                            "physical_dock_error_m": round(true_distance, 4),
+                        },
+                    )
     def run(self) -> MissionReplay:
         for tick in range(1_501):
             time_s = round(tick * DT, 1)
             self.last_time = time_s
             self._phase_transitions(time_s)
             self._move_threats(time_s)
+            self._decision_cycle(time_s)
             for agent in self.agents:
                 self._move_agent(agent, time_s)
             self._update_separation()
@@ -721,6 +848,8 @@ class FullMissionSimulator:
             "completed": completed,
             "rf_ground_messages": 0,
             "rf_interdrone_messages": 0,
+            "decision_ticks": self.decision_ticks,
+            "belief_inferences": self.belief_inferences,
             "target_assignment_messages": 0,
             "safety_filter": "snape/RVO2-3D",
         }
