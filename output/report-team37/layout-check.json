@@ -1,0 +1,38 @@
+[
+  {
+    "page": 1,
+    "column": 1,
+    "bottom_y": 51.19,
+    "remaining_pt": 8.69
+  },
+  {
+    "page": 1,
+    "column": 2,
+    "bottom_y": 43.79,
+    "remaining_pt": 1.29
+  },
+  {
+    "page": 2,
+    "column": 1,
+    "bottom_y": 57.19,
+    "remaining_pt": 14.69
+  },
+  {
+    "page": 2,
+    "column": 2,
+    "bottom_y": 84.79,
+    "remaining_pt": 42.29
+  },
+  {
+    "page": 3,
+    "column": 1,
+    "bottom_y": 104.69,
+    "remaining_pt": 62.19
+  },
+  {
+    "page": 3,
+    "column": 2,
+    "bottom_y": 123.59,
+    "remaining_pt": 81.09
+  }
+]
