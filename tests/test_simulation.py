@@ -267,10 +267,23 @@ def test_full_demo_covers_deployment_twenty_hostiles_impacts_and_return_to_base(
         for event in replay.events
         if event.kind == "formation_occupied"
     ]
-    assert deployment_starts and all(position[1] > 0.0 for position in deployment_starts[:24])
-    assert ingress_starts and all(position[1] < 0.0 for position in ingress_starts)
+    assert deployment_starts and all(position[1] >= 1_200.0 for position in deployment_starts[:24])
+    assert ingress_starts and all(position[1] < -5_000.0 for position in ingress_starts)
     assert all(event.truth["to_position"][1] > event.truth["from_position"][1] for event in ingress_steps)
-    assert formation_positions and all(position[1] < 0.0 for position in formation_positions)
+    assert formation_positions and all(position[1] <= -1_180.0 for position in formation_positions)
+    launch_distance = abs(deployment_starts[0][1] - formation_positions[0][1])
+    assert launch_distance >= 2_350.0
+    interceptor_speeds = [
+        np.linalg.norm(event.agent_local["safe_velocity"])
+        for event in replay.events
+        if event.kind == "trajectory_step"
+    ]
+    hostile_speeds = [
+        np.linalg.norm((np.asarray(event.truth["to_position"]) - np.asarray(event.truth["from_position"])) / 0.1)
+        for event in ingress_steps
+    ]
+    assert max(interceptor_speeds) >= 85.0
+    assert max(hostile_speeds) >= 48.0
     assert replay.metrics.neutralized == 20
     assert replay.metrics.leaked == 0
     assert replay.metrics.completed

@@ -101,8 +101,8 @@ class MemsNavigationFilter:
         self._rng = rng
         self.position = np.asarray(position, dtype=float)
         self.velocity = np.zeros(3, dtype=float)
-        self.accel_bias = rng.normal(0.0, 0.0005, 3)
-        self.gyro_bias = float(rng.normal(0.0, math.radians(0.001)))
+        self.accel_bias = rng.normal(0.0, 0.00015, 3)
+        self.gyro_bias = float(rng.normal(0.0, math.radians(0.0003)))
         self.baro_bias = float(rng.normal(0.0, 0.8))
         self.heading_error = 0.0
         self.covariance = np.asarray((1.0, 1.0, 0.5), dtype=float)
@@ -116,10 +116,10 @@ class MemsNavigationFilter:
         dt: float,
         remember_path: bool = True,
     ) -> MemsNavigationState:
-        accel_noise = self._rng.normal(0.0, 0.003, 3)
-        gyro_noise = float(self._rng.normal(0.0, math.radians(0.003)))
-        self.accel_bias += self._rng.normal(0.0, 0.00001, 3) * math.sqrt(dt)
-        self.gyro_bias += float(self._rng.normal(0.0, math.radians(0.00002))) * math.sqrt(dt)
+        accel_noise = self._rng.normal(0.0, 0.001, 3)
+        gyro_noise = float(self._rng.normal(0.0, math.radians(0.001)))
+        self.accel_bias += self._rng.normal(0.0, 0.000003, 3) * math.sqrt(dt)
+        self.gyro_bias += float(self._rng.normal(0.0, math.radians(0.000006))) * math.sqrt(dt)
         self.baro_bias += float(self._rng.normal(0.0, 0.003)) * math.sqrt(dt)
         measured_heading_rate = true_heading_rate_rad_s + self.gyro_bias + gyro_noise
         self.heading_error += (measured_heading_rate - true_heading_rate_rad_s) * dt

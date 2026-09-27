@@ -63,7 +63,7 @@ function worldOrientation(position: Vec3, heading = 0) {
   return Transforms.headingPitchRollQuaternion(world(position), new HeadingPitchRoll(heading, 0, 0));
 }
 
-function WorldLoader({ mode, onTileState }: Pick<CesiumSceneProps, "mode" | "onTileState">) {
+function WorldLoader({ mode, time, onTileState }: Pick<CesiumSceneProps, "mode" | "time" | "onTileState">) {
   const { viewer } = useCesium();
 
   useEffect(() => {
@@ -110,18 +110,21 @@ function WorldLoader({ mode, onTileState }: Pick<CesiumSceneProps, "mode" | "onT
     };
   }, [viewer, onTileState]);
 
+  const overviewPhase = time < 32 ? "launch" : "mission";
   useEffect(() => {
     if (!viewer) return;
     const destinations: Record<SceneMode, { position: Vec3; heading: number; pitch: number }> = {
-      overview: { position: [220, -950, 390], heading: 0, pitch: -15 },
-      forward: { position: [-120, -130, 175], heading: 0, pitch: -2 },
-      observer: { position: [120, -550, 520], heading: 0, pitch: -68 },
+      overview: overviewPhase === "launch"
+        ? { position: [0, -300, 2_200], heading: 0, pitch: -65 }
+        : { position: [0, -3_000, 3_600], heading: 0, pitch: -85 },
+      forward: { position: [-120, -1_250, 320], heading: 180, pitch: -5 },
+      observer: { position: [120, -2_000, 1_600], heading: 180, pitch: -62 },
       contact: { position: [-300, -550, 400], heading: 10, pitch: -20 },
       miss: { position: [300, -550, 400], heading: -10, pitch: -20 },
-      uncertainty: { position: [0, -250, 420], heading: 180, pitch: -22 },
-      identity: { position: [0, -420, 250], heading: 180, pitch: -8 },
-      safety: { position: [-100, -560, 330], heading: 180, pitch: -18 },
-      fleet: { position: [-580, -600, 600], heading: 28, pitch: -27 }
+      uncertainty: { position: [0, -2_600, 1_850], heading: 180, pitch: -28 },
+      identity: { position: [0, -2_700, 1_150], heading: 180, pitch: -18 },
+      safety: { position: [0, -2_800, 1_600], heading: 180, pitch: -75 },
+      fleet: { position: [-700, -1_900, 1_500], heading: 24, pitch: -31 }
     };
     const target = destinations[mode ?? "overview"];
     viewer.camera.setView({
@@ -132,7 +135,7 @@ function WorldLoader({ mode, onTileState }: Pick<CesiumSceneProps, "mode" | "onT
         roll: 0
       }
     });
-  }, [viewer, mode]);
+  }, [viewer, mode, overviewPhase]);
 
   return null;
 }
@@ -191,19 +194,19 @@ function SectorGeometry() {
     <>
       {sectors.map((sector) => {
         const footprint = [
-          world([sector.x0, -50, 2]), world([sector.x1, -50, 2]), world([sector.x1, -900, 2]),
-          world([sector.x0, -900, 2]), world([sector.x0, -50, 2])
+          world([sector.x0, -200, 2]), world([sector.x1, -200, 2]), world([sector.x1, -4_800, 2]),
+          world([sector.x0, -4_800, 2]), world([sector.x0, -200, 2])
         ];
         return (
           <Entity key={sector.name}>
             <Entity polyline={{ positions: footprint, width: 1, material: FRIENDLY_SOFT.withAlpha(0.4) }} />
-            <Entity position={world([(sector.x0 + sector.x1) / 2, -70, 4])} label={label(sector.name, WHITE.withAlpha(0.8))} />
+            <Entity position={world([(sector.x0 + sector.x1) / 2, -260, 4])} label={label(sector.name, WHITE.withAlpha(0.8))} />
           </Entity>
         );
       })}
       {[-360, -120, 120, 360].map((x) => (
         <Entity key={`partition-${x}`} polyline={{
-          positions: [world([x, -50, 0]), world([x, -900, 0]), world([x, -900, 400]), world([x, -50, 400]), world([x, -50, 0])],
+          positions: [world([x, -200, 0]), world([x, -4_800, 0]), world([x, -4_800, 400]), world([x, -200, 400]), world([x, -200, 0])],
           width: 1,
           material: WHITE.withAlpha(0.18)
         }} />
@@ -211,7 +214,7 @@ function SectorGeometry() {
       {[170, 350].map((height) => (
         <Entity key={`layer-${height}`} polygon={{
           hierarchy: new PolygonHierarchy([
-            world([-360, -50, height]), world([360, -50, height]), world([360, -900, height]), world([-360, -900, height])
+            world([-360, -200, height]), world([360, -200, height]), world([360, -4_800, height]), world([-360, -4_800, height])
           ]),
           perPositionHeight: true,
           material: FRIENDLY.withAlpha(height === 170 ? 0.075 : 0.05),
@@ -219,10 +222,10 @@ function SectorGeometry() {
           outlineColor: FRIENDLY_SOFT.withAlpha(0.32)
         }} />
       ))}
-      <Entity position={world([-325, -120, 180])} label={label("Active layer", FRIENDLY_SOFT)} />
-      <Entity position={world([-300, -120, 360])} label={label("Reserve · observing", FRIENDLY_SOFT)} />
-      <Entity position={world([0, 360, 20])} label={label("SINGAPORE · LAUNCH", FRIENDLY_SOFT)} />
-      <Entity position={world([0, -1250, 20])} label={label("SEA · HOSTILE INGRESS", CORAL)} />
+      <Entity position={world([-325, -320, 180])} label={label("Active layer", FRIENDLY_SOFT)} />
+      <Entity position={world([-300, -320, 360])} label={label("Reserve · observing", FRIENDLY_SOFT)} />
+      <Entity position={world([0, 1_200, 20])} label={label("SINGAPORE COAST · LAUNCH", FRIENDLY_SOFT)} />
+      <Entity position={world([0, -5_200, 20])} label={label("OPEN SEA · HOSTILE INGRESS", CORAL)} />
     </>
   );
 }
@@ -447,7 +450,7 @@ export function CesiumScene({ model, time, mode = "overview", truthOverlay = tru
         shouldAnimate={false}
         showRenderLoopErrors={false}
       >
-        <WorldLoader mode={mode} onTileState={handleTileState} />
+        <WorldLoader mode={mode} time={time} onTileState={handleTileState} />
         <RenderOnTime time={time} />
         <ReplayEntities model={model} time={time} mode={mode} truthOverlay={truthOverlay} />
       </Viewer>

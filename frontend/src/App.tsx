@@ -554,7 +554,7 @@ function SpeedTrace({ model, time }: { model: ReplayModel | null; time: number }
         return { time: event.time_s, speed: Math.hypot(...velocity) };
       });
   }, [agentId, model, time]);
-  const points = samples.map((sample) => `${(sample.time / Math.max(model?.duration ?? 1, 1)) * 600},${82 - Math.min(72, sample.speed / 66 * 72)}`).join(" ");
+  const points = samples.map((sample) => `${(sample.time / Math.max(model?.duration ?? 1, 1)) * 600},${82 - Math.min(72, sample.speed / 90 * 72)}`).join(" ");
   return <section className="trace-panel"><PanelHeading title="Recorded speed" meta={agentId ?? "No active local track"} /><svg role="img" aria-label="Recorded interceptor speed from replay telemetry" viewBox="0 0 600 90" preserveAspectRatio="none"><polyline points={points} fill="none" /></svg></section>;
 }
 

@@ -22,8 +22,10 @@ from .observation import IFFMachine, MemsNavigationFilter
 DT = 0.1
 INGRESS_TIME = 32.0
 BOUNDARY_Y = 0.0
-SENSOR_RANGE_M = 1_800.0
+SENSOR_RANGE_M = 4_800.0
 MIN_SEPARATION_M = 8.0
+MAX_INTERCEPTOR_SPEED_MPS = 90.0
+RETURN_SPEED_MPS = 80.0
 
 
 def _v3(value: np.ndarray | tuple[float, float, float]) -> list[float]:
@@ -126,8 +128,8 @@ class FullMissionSimulator:
             column = index % 8
             tier = index // 8
             x = -350.0 + column * 100.0 + (50.0 if tier % 2 else 0.0)
-            base = np.asarray((-430.0 + index * 37.5, 330.0 + (index % 3) * 18.0, 4.0))
-            grid = np.asarray((x, -300.0 - tier * 45.0, 250.0 + tier * 75.0))
+            base = np.asarray((-430.0 + index * 37.5, 1_200.0 + (index % 3) * 24.0, 4.0))
+            grid = np.asarray((x, -1_200.0 - tier * 100.0, 250.0 + tier * 75.0))
             if index == 23:
                 battery = 0.305
             else:
@@ -147,11 +149,11 @@ class FullMissionSimulator:
     def _build_threats(self) -> list[MissionThreat]:
         threats: list[MissionThreat] = []
         for index, x in enumerate(np.linspace(-440.0, 440.0, 20)):
-            velocity = np.asarray((self.rng.normal(0.0, 0.55), 19.0 + (index % 4) * 0.7, self.rng.normal(0.0, 0.08)))
+            velocity = np.asarray((self.rng.normal(0.0, 0.85), 48.0 + (index % 4) * 1.3, self.rng.normal(0.0, 0.08)))
             threats.append(
                 MissionThreat(
                     index=index,
-                    position=np.asarray((x, -1_480.0 + self.rng.normal(0.0, 12.0), 105.0 + (index % 5) * 20.0)),
+                    position=np.asarray((x, -5_200.0 + self.rng.normal(0.0, 22.0), 105.0 + (index % 5) * 20.0)),
                     velocity=velocity,
                     shared_condition=float(self.rng.normal(0.0, 0.045)),
                 )
@@ -241,7 +243,7 @@ class FullMissionSimulator:
         result: dict[str, list[tuple[MissionThreat, Candidate]]] = {agent.id: [] for agent in agents}
         for observation, learned in zip(observations, learned_batch, strict=True):
             agent, threat, local_id, local_position, observed_velocity, range_m, visibly_covered, time_to_boundary = observation
-            closing_speed = max(12.0, 64.0 - float(np.linalg.norm(observed_velocity)))
+            closing_speed = MAX_INTERCEPTOR_SPEED_MPS + min(50.0, float(np.linalg.norm(observed_velocity)))
             intercept_time = min(time_to_boundary, range_m / closing_speed)
             intercept_point = local_position + observed_velocity * intercept_time
             belief = BeliefOutput(
@@ -459,14 +461,14 @@ class FullMissionSimulator:
         estimate = agent.navigator.state
         estimated_position = np.asarray(estimate.position)
         estimated_velocity = np.asarray(estimate.velocity)
-        limits = GuidanceLimits(66.0, 17.0, 24.0, 3.2, min_speed=8.0)
+        limits = GuidanceLimits(MAX_INTERCEPTOR_SPEED_MPS, 28.0, 30.0, 3.2, min_speed=12.0)
         target_position: np.ndarray | None = None
         target_velocity = np.zeros(3)
         remaining_time = 12.0
         if agent.state == "DEPLOYING":
             target_position = agent.grid
             remaining_time = max(1.0, INGRESS_TIME - time_s - 1.0)
-            limits = GuidanceLimits(66.0, 45.0, 28.0, 3.2)
+            limits = GuidanceLimits(MAX_INTERCEPTOR_SPEED_MPS, 55.0, 32.0, 3.2)
         elif agent.state in {"INTERCEPTING", "RECOVERY_INTERCEPT"}:
             threat = self._target_for_agent(agent)
             if threat is None:
@@ -479,7 +481,7 @@ class FullMissionSimulator:
             agent.last_observed_target = observed_target.copy()
             distance = float(np.linalg.norm(observed_target - estimated_position))
             target_velocity = threat.velocity
-            remaining_time = max(0.2, distance / 62.0)
+            remaining_time = max(0.2, distance / 84.0)
             target_position = observed_target + target_velocity * remaining_time
             agent.last_intercept_basket = target_position.copy()
             if distance < 170.0 or remaining_time <= limits.terminal_time_s:
@@ -491,23 +493,30 @@ class FullMissionSimulator:
                 agent.last_preferred_velocity = np.asarray(command.preferred_velocity)
                 return agent.last_preferred_velocity
         elif agent.state == "RETURNING":
-            if not agent.rth_waypoints:
-                agent.rth_waypoints = agent.navigator.reverse_waypoints(base_altitude_m=float(agent.base[2]))
-            if agent.rth_index < len(agent.rth_waypoints):
-                remaining_waypoints = np.asarray(agent.rth_waypoints[agent.rth_index:])
-                agent.rth_index += int(np.argmin(np.linalg.norm(remaining_waypoints - estimated_position, axis=1)))
-            while agent.rth_index < len(agent.rth_waypoints) and np.linalg.norm(estimated_position - np.asarray(agent.rth_waypoints[agent.rth_index])) < 18.0:
-                agent.rth_index += 1
-            if agent.rth_index >= len(agent.rth_waypoints):
-                target_position = np.asarray(agent.navigator.path_memory[0])
+            relative_dock = agent.base - agent.position
+            dock_range = float(np.linalg.norm(relative_dock))
+            if dock_range <= 180.0:
+                target_position = estimated_position + relative_dock + self.rng.normal(0.0, 0.45, 3)
+                guidance_mode = "terminal_optical_dock"
             else:
-                target_position = np.asarray(agent.rth_waypoints[agent.rth_index])
+                if not agent.rth_waypoints:
+                    agent.rth_waypoints = agent.navigator.reverse_waypoints(base_altitude_m=float(agent.base[2]))
+                if agent.rth_index < len(agent.rth_waypoints):
+                    remaining_waypoints = np.asarray(agent.rth_waypoints[agent.rth_index:])
+                    agent.rth_index += int(np.argmin(np.linalg.norm(remaining_waypoints - estimated_position, axis=1)))
+                while agent.rth_index < len(agent.rth_waypoints) and np.linalg.norm(estimated_position - np.asarray(agent.rth_waypoints[agent.rth_index])) < 250.0:
+                    agent.rth_index += 1
+                if agent.rth_index >= len(agent.rth_waypoints):
+                    target_position = np.asarray(agent.navigator.path_memory[0])
+                else:
+                    target_position = np.asarray(agent.rth_waypoints[agent.rth_index])
+                guidance_mode = "reverse_ins_waypoint"
             displacement = target_position - estimated_position
             distance_to_waypoint = float(np.linalg.norm(displacement))
-            preferred = np.zeros(3) if distance_to_waypoint < 1e-6 else displacement * (min(36.0, distance_to_waypoint / 2.0) / distance_to_waypoint)
-            preferred[2] = float(np.clip(preferred[2], -10.0, 10.0))
+            preferred = np.zeros(3) if distance_to_waypoint < 1e-6 else displacement * (min(75.0, distance_to_waypoint / 1.5) / distance_to_waypoint)
+            preferred[2] = float(np.clip(preferred[2], -16.0, 16.0))
             agent.replanning_count += 1
-            agent.last_guidance_mode = "reverse_ins_waypoint"
+            agent.last_guidance_mode = guidance_mode
             agent.last_preferred_velocity = preferred
             return preferred
         else:
@@ -545,7 +554,7 @@ class FullMissionSimulator:
                 neighbors.append((tuple(observed_position), tuple(observed_velocity), "HOSTILE EVIDENCE"))
         result = official_rvo2_filter(
             tuple(estimated_position), tuple(estimated_velocity), tuple(preferred), neighbors,
-            MIN_SEPARATION_M, 4.0, DT, 66.0,
+            MIN_SEPARATION_M, 4.0, DT, MAX_INTERCEPTOR_SPEED_MPS,
         )
         agent.last_safety_override = result.override
         agent.last_min_separation = result.predicted_min_separation_m
@@ -561,17 +570,17 @@ class FullMissionSimulator:
         if agent.state == "RETURNING":
             velocity_delta = preferred - agent.velocity
             delta_norm = float(np.linalg.norm(velocity_delta))
-            if delta_norm > 5.0:
-                preferred = agent.velocity + velocity_delta * (5.0 / delta_norm)
+            if delta_norm > 12.0:
+                preferred = agent.velocity + velocity_delta * (12.0 / delta_norm)
             agent.last_preferred_velocity = preferred
         safe = self._safe_command(agent, preferred)
-        max_speed = 40.0 if agent.state == "RETURNING" else 66.0
+        max_speed = RETURN_SPEED_MPS if agent.state == "RETURNING" else MAX_INTERCEPTOR_SPEED_MPS
         speed = float(np.linalg.norm(safe))
         if speed > max_speed:
             safe *= max_speed / speed
         next_position = agent.position + safe * DT
-        next_position[0] = float(np.clip(next_position[0], -650.0, 650.0))
-        next_position[1] = float(np.clip(next_position[1], -1_650.0, 420.0))
+        next_position[0] = float(np.clip(next_position[0], -700.0, 700.0))
+        next_position[1] = float(np.clip(next_position[1], -5_500.0, 1_280.0))
         next_position[2] = float(np.clip(next_position[2], 4.0, 420.0))
         agent.position = next_position
         agent.velocity = safe
@@ -769,15 +778,6 @@ class FullMissionSimulator:
         for agent in self.agents:
             if agent.alive and agent.state not in {"RETURNING", "LANDED", "DEPLOYING", "INTERCEPTING", "RECOVERY_INTERCEPT"} and agent.battery <= 0.25:
                 self._start_rth(agent, time_s, "critical_battery_abort")
-        active_threats = [threat for threat in self.threats if threat.active and threat.alive]
-        if active_threats and all(threat.covered_by is not None for threat in active_threats):
-            idle_agents = [
-                agent
-                for agent in self.agents
-                if agent.alive and agent.state in {"ON_STATION", "RESERVE"} and agent.target_id is None
-            ]
-            for agent in idle_agents[:-1]:
-                self._start_rth(agent, time_s, "all_observed_tracks_covered")
         threats_resolved = all(not threat.alive for threat in self.threats)
         if threats_resolved:
             for agent in self.agents:
@@ -789,7 +789,7 @@ class FullMissionSimulator:
                 estimated_base = np.asarray(agent.navigator.path_memory[0])
                 estimated_distance = float(np.linalg.norm(estimated_position - estimated_base))
                 true_distance = float(np.linalg.norm(agent.position - agent.base))
-                if estimated_distance <= 4.0 and true_distance <= 15.0 and np.linalg.norm(agent.velocity) <= 2.5:
+                if estimated_distance <= 180.0 and true_distance <= 8.0 and np.linalg.norm(agent.velocity) <= 2.5:
                     agent.velocity[:] = 0.0
                     agent.state = "LANDED"
                     self.add_event(
