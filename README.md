@@ -1,95 +1,76 @@
-# AirDnD: Smart Air Defense C2 with Jamming-Resilient Swarm Coordination
+# AirDnD
 
-> **Target Event:** Singapore Defense Tech Hackathon (SDTH 2026)  
-> **Event Link:** [https://luma.com/sdth-2026](https://luma.com/sdth-2026)  
-> **Dates & Venue:** 25–27 September 2026 @ NUS Enterprise @ i3  
-> **Organizers:** European Defense Tech Hub (EDTH), NUS Enterprise, TUM Venture Labs, Defence Venture Lab (DVL)  
-> **Challenge Track:** Track 03: *Interceptors (Layer 3: Onboard Autonomy & Swarm Coordination)* with Track 04: *One Picture, Many Eyes* (Strategic Ground C2 Interlock)
+AirDnD is a deterministic software prototype for decentralized interceptor-swarm coordination under total RF blackout. The archive separates simulator truth, per-interceptor local observations, and presentation state. All navigation, identity, engagement, separation, and hit-rate results are simulation evidence, not flight validation.
 
----
+## Run
 
-## 1. Executive Summary
+Prerequisites: macOS or Linux, `uv`, Node.js 20+, npm, and a Cesium ion account with access to Google Photorealistic 3D Tiles.
 
-When hundreds of low-cost attritable drones attack simultaneously in a zero-depth environment like Singapore (50 km wide), traditional air defense suffers two fatal bottlenecks:
-1. **Operator Cognitive Overload:** Manual weapon-target pairing collapses when warning times drop to seconds.
-2. **Link-Denial Single Point of Failure:** Adversarial Electronic Warfare (EW) cuts central radar and ground telemetry links, paralyzing centralized Command & Control (C2).
-
-**AirDnD** decouples strategic authorization from tactical execution through a **two-tiered architecture**:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                 1. STRATEGIC LAYER (Ground C2 / Human-on-the-Loop)          │
-│  - Multi-source track ingestion (Radar, ADS-B, Cursor-on-Target)            │
-│  - Real-time collateral debris geofencing away from dense HDB residential   │
-│  - Agentic AI synthesizes 150+ threats into 3 clear Strategy Cards (COAs)   │
-│  - Human commander authorizes defense policy with a single click            │
-└──────────────────────────────────────────────────────────────────────┬──────────┘
-                                       │ 1-Click Commander Authorization
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                 2. TACTICAL LAYER (Decentralized Edge Swarm)                │
-│  - Operates when Electronic Warfare (EW) jams ground links (100% loss)      │
-│  - Interceptors communicate peer-to-peer over local mesh (802.15.4 / Wi-Fi) │
-│  - Decentralized Weapon-Target Assignment (WTA) converges in <100ms         │
-│  - EscrowCore & CRDTs prevent split-brain overcommitment under partitions   │
-│  - Dynamic rebidding upon interceptor attrition or missed targets            │
-└─────────────────────────────────────────────────────────────────────────────┘
+```sh
+uv sync
+npm install
+npm --prefix frontend install
+cp frontend/.env.example frontend/.env.local
 ```
 
----
+Set both variables in `frontend/.env.local`:
 
-## 2. Core Technical White Space
+- `VITE_CESIUM_ION_TOKEN`: Cesium ion access for the required Google geocoder.
+- `VITE_GOOGLE_MAPS_API_KEY`: a paid Google Maps Platform key with Map Tiles API and billing enabled, restricted to the app's web origins.
 
-- **EscrowCore (Partition-Safe Commitment Credits):** In a fragmented radio mesh, disconnected interceptor clusters risk double-spending scarce interceptors on the same threat. AirDnD partitions finite engagement rights using bounded-counter CRDTs, preserving safety invariants without requiring live global consensus.
-- **Collateral-Aware Littoral Geofencing:** Real-time computation of kinetic intercept footprints, ensuring engagements occur over littoral waters and away from high-density urban areas.
-- **Hardware-in-the-Loop (HIL) Credibility Anchor:** Core consensus algorithms benchmarked on low-cost **ESP32** microcontrollers (sub-5ms loop time, <512KB SRAM footprint) to prove sim-to-real deployability on expendable airframes.
+The worldview sends tile requests directly to Google Map Tiles API. It blocks instead of substituting an ion-cached, offline, or procedural map when either credential or the Google tiles cannot be loaded. Never commit `.env.local`.
 
----
+Generate the checked evidence bundle:
 
-## 3. Repository Layout
-
-| Path | Description |
-| :--- | :--- |
-| `src/` | 3D tactical digital twin, C2 dashboard, swarm simulation, voice control |
-| `src/airdnd/` | AirDnD tactical defense layer (simulation, swarm consensus, serial, audio) |
-| `server/` | Vite dev server, provider middleware, key management |
-| `firmware/airdnd_node/` | ESP32-C6 embedded consensus firmware (Arduino C++) |
-| `public/models/` | 3D aircraft models (MQ-9, 787, ATR-72, Citation, Bell 206, C172, jet, ship) |
-| `scripts/` | Dev launchers, QA probes, build helpers |
-| `config/` | CCTV source configurations by city |
-| `SETUP_GUIDE.md` | GCP + OpenAI + Cesium ion setup instructions |
-| `PROBLEM_STATEMENTS.md` | Track 03 & 04 briefs, constraints, and judging criteria |
-| `resources/` | Official SDTH 2026 organizer problem briefs |
-
----
-
-## 4. Planned Deliverables (25–27 Sep 2026)
-
-1. **3D Tactical Digital Twin & C2 Dashboard:**
-   - Single-page interactive simulation (Three.js / Canvas).
-   - Inbound 40–150 threat salvo (Mixture of Threats: Shaheds, high-speed jet drones, FPVs).
-   - Interactive Ground C2 with 3-Card Strategy selection and HDB collateral geofencing.
-   - EW Jamming trigger: instant degradation to decentralized P2P swarm auction with sub-100ms convergence and zero leakage.
-2. **Physical ESP32 Bench Rig (Hardware Credibility Anchor):**
-   - Embedded C++ consensus running live on an ESP32 connected via USB/Serial to demonstrate real-time compute feasibility under memory and power constraints.
-3. **Submission Assets:**
-   - 30-second demonstration video.
-   - 3-minute pitch deck for the judging panel.
-   - Technical archive with full reproducible source code and benchmark logs.
-
----
-
-## 5. Quick Start
-
-Use **Node.js 24.x (24.14.0 or later) or 26.x**.
-
-```bash
-git clone https://github.com/adoreblvnk/AirDnD.git
-cd AirDnD
-npm ci
-npm run dev
+```sh
+uv run python scripts/generate_evidence.py --output evidence --models-output models --seeds 30 --hostiles 100 --interceptors 125
 ```
 
-Open **`http://localhost:4173`**.
+Start the API and worldview in separate terminals:
 
-For GCP, OpenAI, and Cesium ion key setup, see [SETUP_GUIDE.md](SETUP_GUIDE.md).
+```sh
+uv run uvicorn airdnd.api:app --host 127.0.0.1 --port 8000
+npm --prefix frontend run dev -- --port 5173
+```
+
+Open `http://127.0.0.1:5173` for the live CesiumJS/Resium worldview backed by Google Photorealistic 3D Tiles. Open `/evidence` for generated reports and downloads. Open `/training` to launch the real PyTorch training pipeline, monitor per-epoch training and held-out loss, run ONNX/INT8 verification, and download the produced artifacts.
+
+## Verify
+
+```sh
+uv run pytest -q
+npm --prefix frontend test -- --run
+npm --prefix frontend run build
+```
+
+The generated evidence contains 30 paired seeds across 5 methods and exactly 100 hostiles per run. Current simulation results support AC-020 and AC-031. AC-021 fails because the learned-model comparison confidence interval crosses zero, so learned-model superiority is not claimed. Collision filtering uses the vendored official `snape/RVO2-3D` C++ implementation at revision `c726b3c537639ca2cf202c49bcae0f6b7889f344`.
+
+Verify archive hashes:
+
+```sh
+cd evidence
+shasum -a 256 -c manifest.sha256
+```
+
+## Presentation
+
+Serve `presentation/index.html` from the repository root for the timed 3-minute deck. With the API and worldview running, generate the exact 30-second hook video and 7 screenshots:
+
+```sh
+npm run capture-demo
+```
+
+Outputs are written to `presentation/captures/` and excluded from Git because video capture is machine-generated.
+
+## Layout
+
+- `src/airdnd/` simulator, model, decision, guidance, benchmark, and API
+- `tests/` Python regression and API tests
+- `frontend/` React, TypeScript, Resium, and Cesium worldview
+- `evidence/` raw paired runs, reports, fixed replays, and SHA-256 manifest
+- `models/` trained PyTorch and ONNX INT8 model artifacts
+- `configs/` benchmark and frozen parameter declarations
+- `presentation/` timed deck and capture instructions
+- `scripts/` evidence and video generation workflows
+
+`AIRDND.md` remains the normative architecture and acceptance specification.

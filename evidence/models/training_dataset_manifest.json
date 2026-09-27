@@ -1,0 +1,28 @@
+{
+  "counterfactual_branches": [
+    "no_focal_action",
+    "focal_action",
+    "other_friendly_action"
+  ],
+  "feature_shape": [
+    256,
+    5,
+    12
+  ],
+  "label_heads": [
+    "leak",
+    "action_success",
+    "friendly_coverage",
+    "intercept_time",
+    "intercept_point_xyz",
+    "coverage_expiry",
+    "confidence"
+  ],
+  "label_source": "paired_local_counterfactual_ortools_teacher",
+  "model_inputs": "agent-local relative track history only",
+  "paired_future_streams": 256,
+  "samples": 256,
+  "seed": 17,
+  "teacher_backend": "ortools",
+  "teacher_inputs": "offline simulator truth for labels only"
+}

@@ -1,0 +1,174 @@
+{
+  "evidence_class": "simulation_evidence",
+  "results": [
+    {
+      "leakage": {
+        "ci95_high": 0.2619610402038711,
+        "ci95_low": 0.2380389597961289,
+        "mean": 0.25,
+        "median": 0.26,
+        "n": 30,
+        "std": 0.033425160871869336
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "reserve_ratio": 0.1,
+      "retained_coverage": {
+        "ci95_high": 0.1391728928611511,
+        "ci95_low": 0.12749377380551558,
+        "mean": 0.13333333333333333,
+        "median": 0.136,
+        "n": 30,
+        "std": 0.01631866571061227
+      },
+      "seeds": 30
+    },
+    {
+      "leakage": {
+        "ci95_high": 0.2648594488567776,
+        "ci95_low": 0.2384738844765557,
+        "mean": 0.25166666666666665,
+        "median": 0.25,
+        "n": 30,
+        "std": 0.03686726735600091
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "reserve_ratio": 0.15,
+      "retained_coverage": {
+        "ci95_high": 0.14242336883001722,
+        "ci95_low": 0.1295766311699828,
+        "mean": 0.136,
+        "median": 0.14,
+        "n": 30,
+        "std": 0.01795012246620407
+      },
+      "seeds": 30
+    },
+    {
+      "leakage": {
+        "ci95_high": 0.26834581870235213,
+        "ci95_low": 0.2423208479643146,
+        "mean": 0.25533333333333336,
+        "median": 0.245,
+        "n": 30,
+        "std": 0.03636342737661995
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "reserve_ratio": 0.2,
+      "retained_coverage": {
+        "ci95_high": 0.14724971221669317,
+        "ci95_low": 0.13435028778330685,
+        "mean": 0.1408,
+        "median": 0.144,
+        "n": 30,
+        "std": 0.018023739135201472
+      },
+      "seeds": 30
+    },
+    {
+      "leakage": {
+        "ci95_high": 0.2652000583553149,
+        "ci95_low": 0.2374666083113518,
+        "mean": 0.25133333333333335,
+        "median": 0.25,
+        "n": 30,
+        "std": 0.03875060251663578
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "reserve_ratio": 0.25,
+      "retained_coverage": {
+        "ci95_high": 0.14390794298766502,
+        "ci95_low": 0.13129205701233498,
+        "mean": 0.1376,
+        "median": 0.136,
+        "n": 30,
+        "std": 0.01762756462143193
+      },
+      "seeds": 30
+    },
+    {
+      "leakage": {
+        "ci95_high": 0.27326814709093666,
+        "ci95_low": 0.24606518624239662,
+        "mean": 0.25966666666666666,
+        "median": 0.255,
+        "n": 30,
+        "std": 0.038009375733865466
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "reserve_ratio": 0.3,
+      "retained_coverage": {
+        "ci95_high": 0.15218598073404407,
+        "ci95_low": 0.1384806859326226,
+        "mean": 0.14533333333333334,
+        "median": 0.144,
+        "n": 30,
+        "std": 0.01914974265305309
+      },
+      "seeds": 30
+    },
+    {
+      "leakage": {
+        "ci95_high": 0.269815519780769,
+        "ci95_low": 0.24151781355256427,
+        "mean": 0.25566666666666665,
+        "median": 0.26,
+        "n": 30,
+        "std": 0.03953901027255657
+      },
+      "recovery_count": {
+        "ci95_high": 0.0,
+        "ci95_low": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "n": 30,
+        "std": 0.0
+      },
+      "reserve_ratio": 0.33,
+      "retained_coverage": {
+        "ci95_high": 0.1458792000740543,
+        "ci95_low": 0.13465413325927905,
+        "mean": 0.14026666666666668,
+        "median": 0.14,
+        "n": 30,
+        "std": 0.015684240571313953
+      },
+      "seeds": 30
+    }
+  ],
+  "selection": "No threshold-derived selection is claimed until thresholds are frozen."
+}

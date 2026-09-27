@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-27T02:40:00.000Z",
+  "title": "Design System: AirDnD Tactical Observatory",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Electric Cyan",
+        "canonical": "#38bdf8",
+        "tonalRamp": ["#082f49", "#0c4a6e", "#0369a1", "#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc", "#bae6fd"]
+      },
+      "opposing": {
+        "role": "secondary",
+        "displayName": "Muted Coral",
+        "canonical": "#f87171",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5"]
+      },
+      "unknown": {
+        "role": "tertiary",
+        "displayName": "Tactical Amber",
+        "canonical": "#fbbf24",
+        "tonalRamp": ["#451a03", "#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a"]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Console Panel Base",
+        "canonical": "#10191e",
+        "tonalRamp": ["#04070a", "#0a1014", "#10191e", "#1b272f", "#26353e", "#334550", "#475d6b", "#64748b"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Root brand header and view mode headings." },
+      "headline": { "displayName": "Headline", "purpose": "Pane labels and unit titles." },
+      "body": { "displayName": "Body", "purpose": "Explanatory disclosures and track status descriptions." },
+      "label": { "displayName": "Label", "purpose": "Monospace coordinates, telemetry, timers, and ledger values." }
+    },
+    "shadows": [
+      { "name": "panel-border", "value": "0 0 0 1px rgba(255, 255, 255, 0.08)", "purpose": "Structural hairline container separation." },
+      { "name": "active-glow", "value": "0 0 0 1px rgba(56, 189, 248, 0.35)", "purpose": "High-contrast selection state." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Smooth camera and inspector pane transitions." }
+    ],
+    "breakpoints": [
+      { "name": "desktop", "value": "1280px" },
+      { "name": "wide", "value": "1920px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Navigation Tab",
+      "kind": "nav",
+      "refersTo": "nav-tab",
+      "description": "Slim left rail view switcher tab with 16px icon and clean label.",
+      "html": "<button class=\"ds-nav-tab ds-nav-tab-active\"><span class=\"ds-nav-icon\">◈</span><span class=\"ds-nav-label\">Scene</span></button>",
+      "css": ".ds-nav-tab { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 16px; background: transparent; color: #94a3b8; border: 1px solid transparent; border-radius: 2px; font-family: Barlow, Inter, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.15s, color 0.15s; } .ds-nav-tab:hover { background: rgba(255, 255, 255, 0.04); color: #f1f5f9; } .ds-nav-tab-active { background: #0a1014; color: #38bdf8; border-color: rgba(56, 189, 248, 0.25); } .ds-nav-icon { font-size: 14px; }"
+    },
+    {
+      "name": "Identity State Chip",
+      "kind": "chip",
+      "refersTo": "chip-state",
+      "description": "Four-state IFF lineage classification chip (Confirmed, Lineage, Unknown, Hostile evidence).",
+      "html": "<div class=\"ds-chip-group\"><span class=\"ds-chip ds-chip-confirmed\">Confirmed</span><span class=\"ds-chip ds-chip-unknown ds-chip-active\">Unknown</span><span class=\"ds-chip ds-chip-hostile\">Hostile evidence</span></div>",
+      "css": ".ds-chip-group { display: flex; gap: 8px; } .ds-chip { padding: 6px 14px; font-family: Barlow, Inter, sans-serif; font-size: 12px; font-weight: 500; border-radius: 2px; cursor: pointer; text-transform: capitalize; } .ds-chip-confirmed { border: 1px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.1); color: #38bdf8; } .ds-chip-unknown { border: 1px solid rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.1); color: #fbbf24; } .ds-chip-unknown.ds-chip-active { background: rgba(251, 191, 36, 0.22); border-color: #fbbf24; } .ds-chip-hostile { border: 1px solid rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.1); color: #f87171; }"
+    },
+    {
+      "name": "Playback Scrubber",
+      "kind": "custom",
+      "refersTo": "playback-controller",
+      "description": "Continuous 10 Hz timeline playback controls with transport buttons and scrubber pip.",
+      "html": "<div class=\"ds-playback\"><button class=\"ds-ctrl-btn\">◀</button><button class=\"ds-ctrl-btn ds-ctrl-play\">▶</button><button class=\"ds-ctrl-btn\">▶</button><div class=\"ds-scrubber\"><div class=\"ds-scrubber-fill\" style=\"width: 42%\"></div><div class=\"ds-scrubber-pip\" style=\"left: 42%\"></div></div><div class=\"ds-status-strip\"><span class=\"ds-status-item\">RF denied · scenario</span><span class=\"ds-status-sep\">|</span><span class=\"ds-status-item\">RF messages 0</span><span class=\"ds-status-sep\">|</span><span class=\"ds-status-item\">NIR · identity only</span></div></div>",
+      "css": ".ds-playback { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 16px; background: #10191e; border-top: 1px solid rgba(255, 255, 255, 0.08); font-family: JetBrains Mono, monospace; font-size: 11px; } .ds-ctrl-btn { background: transparent; border: none; color: #f1f5f9; cursor: pointer; padding: 4px 8px; border-radius: 2px; } .ds-ctrl-btn:hover { background: rgba(255, 255, 255, 0.08); } .ds-scrubber { position: relative; flex: 1; height: 2px; background: rgba(255, 255, 255, 0.15); cursor: pointer; } .ds-scrubber-fill { height: 100%; background: #38bdf8; } .ds-scrubber-pip { position: absolute; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; transform: translateX(-50%); } .ds-status-strip { display: flex; gap: 8px; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; margin-left: 16px; } .ds-status-sep { color: rgba(255, 255, 255, 0.2); }"
+    },
+    {
+      "name": "Track Ledger Table",
+      "kind": "custom",
+      "refersTo": "track-ledger",
+      "description": "Minimal read-only tabular telemetry data grid.",
+      "html": "<table class=\"ds-ledger\"><thead><tr><th>Track</th><th>Visible</th><th>Identity</th><th>Age</th></tr></thead><tbody><tr><td>Track A</td><td>Yes</td><td class=\"ds-id-unknown\">Unknown</td><td>Fresh</td></tr><tr><td>Track B</td><td>Partial</td><td class=\"ds-id-unknown\">Unknown</td><td class=\"ds-age-stale\">Stale</td></tr><tr><td>Track C</td><td>Yes</td><td class=\"ds-id-confirmed\">Confirmed</td><td>Fresh</td></tr></tbody></table>",
+      "css": ".ds-ledger { width: 100%; border-collapse: collapse; font-family: JetBrains Mono, monospace; font-size: 12px; } .ds-ledger th { text-align: left; padding: 8px 12px; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid rgba(255, 255, 255, 0.08); } .ds-ledger td { padding: 8px 12px; color: #f1f5f9; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-variant-numeric: tabular-nums; } .ds-id-unknown { color: #fbbf24; } .ds-id-confirmed { color: #38bdf8; } .ds-age-stale { color: #94a3b8; font-style: italic; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Austere Tactical Observatory",
+    "overview": "AirDnD is a specialized mission-inspection console for defense evaluators, operational researchers, and technical judges evaluating autonomous counter-UAS interceptor swarm behavior under prolonged total radio blackout. The design language is defined authoritatively by output/imagegen/frontend-concepts-v2/ and rejects all commercial SaaS habits, sci-fi cyberpunk tropes, and gratuitous UI dressing.\n\nThe interface recedes to let the 3D maritime battlespace over Singapore’s coastline command visual priority. Rather than presenting dense tables of speculative targeting probabilities, flashy reticles, or artificial HUD overlays, the console exhibits calm scientific restraint: pale desaturated daylight lighting, dark charcoal #10191e paneling, hairline dividers, and unambiguous 3D spatial depth.",
+    "keyCharacteristics": [
+      "Zero 2D Screen Cheats: All vectors, sector volumes, sensor cones, and separation bubbles are native Cesium 3D world entities locked to geospatial coordinates.",
+      "Elevation Truth Over Planar Ambiguity: The defensive geometry separates into a lower Active flight layer (~150–200m) and an upper Reserve/Observing tier (~330–400m), reinforced by persistent ground drop lines and synchronized side-elevation profile insets.",
+      "The Quadcopter Invariant: Interceptors and Observers share the identical physical airframe; an Observer is a temporary role defined by altitude, vantage point, and downward optical surveillance, never a dedicated airframe.",
+      "Honest Epistemology: Silhouette boxes represent visual track detections, not confirmed hostility. Appearance ≠ identity. Missing identity data remains classified as Unknown, not hostile.",
+      "Aesthetic Restraint: No neon bloom, no saturated gradients, no floating sci-fi reticles, no descriptive marketing prose, and no fake millisecond counters."
+    ],
+    "rules": [
+      {
+        "name": "The No-Neon Rule",
+        "body": "Luminescent glows, colored text gradients, and diffuse zero-offset box shadows are banned. Accents are applied strictly as crisp 1px strokes, subtle fill washes, or solid marker pips.",
+        "section": "colors"
+      },
+      {
+        "name": "The Truth Overlay Rule",
+        "body": "Opposing red/coral tracks must only appear in evaluator truth mode or verified contact replays. Under local perspective viewports, all visual contacts default to neutral white or amber detection frames.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Number Rule",
+        "body": "All numerical figures (time elapsed, velocities, ranges, coordinates, separations) must explicitly declare font-variant-numeric: tabular-nums to eliminate layout wobble during real-time 10 Hz playback.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do anchor every tactical line, vector, sensor cone, and engagement basket as a native Cesium 3D entity tied to Cartesian coordinates.",
+      "Do use identical quadcopter 3D models for both Interceptor and Observer roles.",
+      "Do distinguish altitude layers unambiguously with vertical ground drop lines down to the water surface.",
+      "Do use font-variant-numeric: tabular-nums for all telemetry readouts, timers, coordinates, and speeds.",
+      "Do treat visual bounding boxes as sensor detections (Track A, Track B), not confirmed enemies.",
+      "Do use #10191e for panels and #0a1014 for active surface backplates.",
+      "Do support offline playback by bundling verified replay scenarios (success.json, miss_recovery.json, naive.json)."
+    ],
+    "donts": [
+      "Don't overlay 2D HTML/SVG elements on top of the Cesium canvas using screen pixel coordinates.",
+      "Don't render drones as tiny 8px point dots or clip typography into buildings without depth testing disabled.",
+      "Don't add neon glows, saturated bloom effects, or sci-fi cyberpunk HUD reticles.",
+      "Don't use bubbly rounded corners (> 3px) or pill-shaped cards.",
+      "Don't classify an unconfirmed track as hostile simply because identity signals are unavailable.",
+      "Don't fabricate speculative strike probabilities, target ranking tables, or fake millisecond execution loops.",
+      "Don't recreate the Cesium viewer or primitives on React state updates."
+    ]
+  }
+}
