@@ -2,7 +2,7 @@ import { DEFAULT_SCENARIO, type ScenarioId } from './scenarios';
 
 export type Perspective = 'OVERVIEW' | 'HOSTILE' | 'INTERCEPTOR' | 'OBSERVER';
 export type Scenario = ScenarioId;
-export type ReplayEventName = 'LAUNCH' | 'GRID SET' | 'MISS' | 'OBSERVER CLAIM' | 'NEUTRALIZED' | 'DUPLICATE PURSUIT' | 'RTH' | 'WAVE DETECTED' | 'ABORT' | 'REFILL' | 'IFF HOLD';
+export type ReplayEventName = 'LAUNCH' | 'GRID SET' | 'MISS' | 'OBSERVER CLAIM' | 'NEUTRALIZED' | 'DUPLICATE PURSUIT' | 'RTH' | 'WAVE DETECTED' | 'ABORT' | 'REFILL' | 'IFF HOLD' | 'LEAKED';
 
 export interface WorldState {
   frame: number;
@@ -131,12 +131,14 @@ export interface RosterDrone {
   platoon: string;
   section: string;
   phase: 'initial' | 'reserve';
+  // Each section is 9 shooters plus 1 observer hovering above it (intercept engine runs).
+  role: 'shooter' | 'observer';
 }
 
 export interface RosterSection { id: string; drones: RosterDrone[] }
 export interface RosterPlatoon { id: string; sections: RosterSection[] }
 
-export type DroneStatus = 'pad' | 'launching' | 'screen' | 'committed' | 'reserve' | 'pursuit' | 'engaging' | 'returning' | 'stood-down' | 'aborting' | 'rth' | 'refilling' | 'docked';
+export type DroneStatus = 'pad' | 'launching' | 'screen' | 'observing' | 'committed' | 'reserve' | 'pursuit' | 'engaging' | 'returning' | 'stood-down' | 'aborting' | 'rth' | 'refilling' | 'docked' | 'expended';
 // 'pending' hostiles belong to a later wave and are not drawn until that wave is detected.
 export type HostileStatus = 'pending' | 'inbound' | 'tracked' | 'neutralized' | 'leaked';
 export type FriendlyIdentity = 'CONFIRMED FRIENDLY' | 'FRIENDLY LINEAGE' | 'UNKNOWN' | 'HOSTILE EVIDENCE';
@@ -194,6 +196,7 @@ const KIND_EVENTS: Record<string, ReplayEventName> = {
   section_launch: 'LAUNCH', formation_step: 'LAUNCH', section_on_station: 'LAUNCH', grid_set: 'GRID SET',
   wave_detected: 'WAVE DETECTED', abort: 'ABORT', recovery_departure: 'RTH', rth_step: 'RTH', rth_docked: 'RTH',
   cell_refill_claim: 'REFILL', refill_step: 'REFILL', refill_complete: 'REFILL', iff_classification: 'IFF HOLD',
+  hostile_leaked: 'LEAKED',
 };
 
 function eventFrom(label: string, overview: Record<string, unknown>, kind?: string): ReplayMoment {
@@ -226,6 +229,7 @@ export function buildRoster(frames: ReplayFrame[]): RosterDrone[] {
       platoon: str(drone.platoon) ?? 'A1',
       section: str(drone.section) ?? 'A1-1',
       phase: drone.phase === 'reserve' ? 'reserve' : 'initial',
+      role: drone.role === 'observer' ? 'observer' : 'shooter',
     }));
   }
   // Replays without an order-of-battle snapshot: list every agent that appears, unsectioned.
@@ -235,7 +239,7 @@ export function buildRoster(frames: ReplayFrame[]): RosterDrone[] {
     const truthId = str(frame.overview.interceptor_id);
     if (truthId) ids.add(truthId);
   });
-  return [...ids].sort().map((id) => ({ id, callsign: id, company: '—', platoon: '—', section: '—', phase: 'initial' }));
+  return [...ids].sort().map((id) => ({ id, callsign: id, company: '—', platoon: '—', section: '—', phase: 'initial', role: 'shooter' }));
 }
 
 export function groupRoster(roster: RosterDrone[]): RosterPlatoon[] {
@@ -268,6 +272,7 @@ export function buildSwarmTimeline(frames: ReplayFrame[]): SwarmFrame[] {
   let friendlies: Record<string, FriendlyState> = {};
   let friendlyTracks: FriendlyTrack[] = [];
   const reserve = new Set<string>();
+  const observers = new Set<string>();
   const sectionMembers = new Map<string, string[]>();
   const timeline: SwarmFrame[] = [];
   const setDrone = (id: string | undefined, patch: Partial<DroneState>) => {
@@ -303,6 +308,7 @@ export function buildSwarmTimeline(frames: ReplayFrame[]): SwarmFrame[] {
         (truth.interceptors as Array<Record<string, unknown>> | undefined)?.forEach((drone) => {
           const id = String(drone.interceptor_id);
           if (drone.phase === 'reserve') reserve.add(id);
+          if (drone.role === 'observer') observers.add(id);
           if (isVector3(drone.cell)) cells[id] = [...drone.cell];
           const section = str(drone.section);
           if (section) sectionMembers.set(section, [...(sectionMembers.get(section) ?? []), id]);
@@ -331,6 +337,41 @@ export function buildSwarmTimeline(frames: ReplayFrame[]): SwarmFrame[] {
       }
       case 'section_on_station':
         (sectionMembers.get(str(truth.section) ?? '') ?? []).forEach((id) => setDrone(id, { status: reserve.has(id) ? 'reserve' : 'screen' }));
+        break;
+      case 'swarm_step': {
+        // Intercept engine flight sample: every airborne drone and hostile, with each drone's
+        // own state and (if committed) the one hostile it is flying at.
+        const states = (truth.states ?? {}) as Record<string, string>;
+        const targets = (truth.targets ?? {}) as Record<string, string>;
+        Object.entries((truth.positions ?? {}) as Record<string, unknown>).forEach(([id, value]) => {
+          if (!isVector3(value)) return;
+          const engineState = states[id];
+          const status: DroneStatus = engineState === 'committed' ? 'engaging'
+            : engineState === 'launching' ? 'launching'
+            : engineState === 'returning' ? 'returning'
+            : engineState === 'rtb' ? 'rth'
+            : engineState === 'docked' ? 'docked'
+            : observers.has(id) ? 'observing' : reserve.has(id) ? 'reserve' : 'screen';
+          setDrone(id, { position: [...value], status, target: targets[id] });
+        });
+        Object.entries((truth.hostiles ?? {}) as Record<string, unknown>).forEach(([id, value]) => {
+          if (isVector3(value) && hostiles[id] && !['neutralized', 'leaked'].includes(hostiles[id].status)) setHostile(id, { position: [...value], status: hostiles[id].status === 'pending' ? 'inbound' : hostiles[id].status });
+        });
+        // Focus on the area under attack: the engagement closest to impact, from the attacker's side.
+        const engagements = Object.entries(targets)
+          .filter(([id, hostile]) => drones[id] && hostiles[hostile])
+          .map(([id, hostile]) => ({ id, hostile, range: Math.hypot(...drones[id].position.map((value, axis) => value - hostiles[hostile].position[axis])) }))
+          .sort((a, b) => a.range - b.range);
+        if (engagements.length) focus = { kind: 'drone', id: engagements[0].id, toward: engagements[0].hostile };
+        else {
+          const launching = Object.values(drones).filter((drone) => drone.status === 'launching');
+          if (launching.length) focus = { kind: 'area', points: pointsOf(launching) };
+        }
+        break;
+      }
+      case 'hostile_leaked':
+        setHostile(hostileId, { status: 'leaked', ...(isVector3(truth.position) ? { position: [...truth.position] } : {}) });
+        if (hostileId) focus = { kind: 'hostile', id: hostileId };
         break;
       case 'grid_set':
         focus = { kind: 'swarm' };
@@ -366,10 +407,14 @@ export function buildSwarmTimeline(frames: ReplayFrame[]): SwarmFrame[] {
         setDrone(interceptorId, { status: 'returning', target: hostileId });
         if (interceptorId) focus = { kind: 'drone', id: interceptorId, toward: hostileId };
         break;
-      case 'neutralized':
-        setHostile(hostileId, { status: 'neutralized' });
+      case 'neutralized': {
+        // Kinetic intercept: when a contact point is recorded, both drones end there.
+        const contact = isVector3(truth.contact_point) ? [...truth.contact_point] : undefined;
+        setHostile(hostileId, { status: 'neutralized', ...(contact ? { position: contact } : {}) });
+        if (contact) setDrone(interceptorId, { status: 'expended', position: contact, target: undefined });
         if (hostileId) focus = { kind: 'hostile', id: hostileId, from: interceptorId };
         break;
+      }
       case 'claim_cancelled':
         setDrone(interceptorId, { status: 'stood-down' });
         break;
@@ -450,13 +495,13 @@ export function buildCells(frames: ReplayFrame[]): Record<string, number[]> {
     .map((drone) => [String(drone.interceptor_id), drone.cell as number[]]));
 }
 
-const MARKER_EVENTS: ReplayEventName[] = ['GRID SET', 'WAVE DETECTED', 'MISS', 'OBSERVER CLAIM', 'NEUTRALIZED', 'ABORT', 'IFF HOLD'];
+const MARKER_EVENTS: ReplayEventName[] = ['GRID SET', 'WAVE DETECTED', 'MISS', 'OBSERVER CLAIM', 'NEUTRALIZED', 'ABORT', 'IFF HOLD', 'LEAKED'];
 
 // Key moments for the timeline strip; repeated consecutive events of one type collapse to one.
 export function buildMarkers(frames: ReplayFrame[]): TimelineMarker[] {
   const markers: TimelineMarker[] = [];
   frames.forEach((frame) => {
-    if (!MARKER_EVENTS.includes(frame.event.event)) return;
+    if (frame.kind === 'swarm_step' || !MARKER_EVENTS.includes(frame.event.event)) return;
     // GRID SET is also the generic fallback label, so only a recorded grid_set counts.
     if (frame.event.event === 'GRID SET' && frame.kind !== 'grid_set') return;
     const previous = markers.at(-1);
@@ -522,6 +567,10 @@ export function assembleReplay(overview: ApiReplay, locals: ApiReplay, source = 
     byFrame.set(frame.frame, merged);
   });
   const frames = [...byFrame.values()].sort((a, b) => a.frame - b.frame);
+  // Flight samples carry no event of their own; keep showing the last real event.
+  frames.forEach((frame, index) => {
+    if (frame.kind === 'swarm_step' && index > 0) frame.event = frames[index - 1].event;
+  });
   return freezeReplay({
     scenarioId: overview.scenario_id,
     evidenceClass: 'simulation_evidence',
@@ -578,6 +627,8 @@ export function rosterCallsign(replay: Replay | null | undefined, agentId: strin
 export const DRONE_STATUS_LABELS: Record<DroneStatus, string> = {
   pad: 'ON PAD',
   launching: 'LAUNCHING',
+  observing: 'OBSERVING',
+  expended: 'EXPENDED · INTERCEPT',
   aborting: 'ABORT',
   rth: 'RTH',
   refilling: 'REFILLING',

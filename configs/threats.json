@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "note": "Generic simulation classes, not real platforms. Read by src/airdnd/engagement.py, the API and the worldview threat builder.",
+  "threat_types": [
+    { "id": "small", "title": "Small quadcopter", "speed_mps": 15, "size_m": 0.5, "detection_range_m": 1500, "altitude_m": [60, 120], "kill_radius_m": 1.5 },
+    { "id": "medium", "title": "Medium attack drone", "speed_mps": 28, "size_m": 1.5, "detection_range_m": 2200, "altitude_m": [100, 200], "kill_radius_m": 2.0 },
+    { "id": "large", "title": "Large fixed-wing", "speed_mps": 42, "size_m": 3.0, "detection_range_m": 3000, "altitude_m": [180, 300], "kill_radius_m": 3.0 }
+  ],
+  "formations": [
+    { "id": "line", "title": "Line abreast" },
+    { "id": "wedge", "title": "Wedge" },
+    { "id": "column", "title": "Column" },
+    { "id": "cluster", "title": "Cluster" },
+    { "id": "waves", "title": "Two waves" }
+  ],
+  "sizing": {
+    "shooters_per_section": 9,
+    "observers_per_section": 1,
+    "shooters_per_hostile": 1,
+    "screen_sections_per_reserve_section": 3,
+    "max_hostiles": 60
+  }
+}

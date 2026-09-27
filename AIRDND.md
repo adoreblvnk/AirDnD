@@ -282,9 +282,10 @@ To resolve the physical limitation of forward-facing optical cameras under black
 - **Lead Mode**: Once committed, the Lead interceptor locks its camera strictly forward on the target to guide terminal interception.
 - **Observer Mode**: A normal interceptor holding a suitable local vantage point may temporarily assume the Observer role while maintaining both the target and Lead within its optical field of view.
 - **Seamless Recovery**: If the Lead fails ($T_{\text{intercept}}$ passes without impact), an eligible interceptor currently in the Observer role may execute the next interception attempt.
+- **Section Doctrine (intercept engine)**: Each section is 9 shooters in a 3×3 block plus 1 Observer of the same airframe hovering 40 m above the section. The Observer watches the incoming tracks and is the section's backup: when a section shooter misses, the Observer claims the surviving track. A kill requires physical contact (closest approach within the threat's kill radius); the interceptor is expended in the collision. Implemented in `src/airdnd/engagement.py`; force sizing (one shooter per hostile, whole sections, one reserve section per three) is in `configs/threats.json`.
 
 ### 5.3 Observer-Claim Selection Under Zero RF Coordination
-No controller assigns an Observer. Every interceptor uses the same hardware and decision stack, and may temporarily enter the Observer role when its local visibility, sector, battery, and feasibility conditions permit. There is no dedicated Observer airframe or permanent Observer allocation.
+No controller assigns an Observer. Every interceptor uses the same hardware and decision stack, and may temporarily enter the Observer role when its local visibility, sector, battery, and feasibility conditions permit. There is no dedicated Observer airframe. The fixed-seed replays use this temporary role; the section doctrine in 5.2 preloads one Observer per section before launch, which is a mission-plan assignment, not an in-flight coordination message.
 
 When a target appears uncovered or survives an interception, each interceptor currently eligible for the Observer role:
 1. Confirms that the target lies within its assigned or adjacent sector.

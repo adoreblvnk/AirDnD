@@ -4,6 +4,8 @@ import SideElevation from './SideElevation';
 import SafetyPanel from './SafetyPanel';
 import { DRONE_STATUS_LABELS, describeReplayError, groupRoster, loadReplay, initialState, reducer, replayAt, replayDecision, replayFleetStatus, replaySwarmAt, rosterCallsign, type Perspective, type Replay } from './worldview';
 import { SCENARIOS, scenarioInfo } from './scenarios';
+import { DEFAULT_THREAT, FORMATIONS, SIZING, THREAT_TYPES, planForce, runSimulation, type SimulationRun, type ThreatSelection } from './threats';
+import { formatSite } from './theatre';
 import './styles.css';
 
 const perspectives: Array<{ key: Perspective; label: string }> = [
@@ -59,6 +61,12 @@ function Worldview() {
   const [replay, setReplay] = useState<Replay | null>(null);
   const [replayError, setReplayError] = useState('');
   const [headingRad, setHeadingRad] = useState(0);
+  const [threat, setThreat] = useState<ThreatSelection>(DEFAULT_THREAT);
+  const [simulation, setSimulation] = useState<SimulationRun | null>(null);
+  const [simulating, setSimulating] = useState(false);
+  const [simulationError, setSimulationError] = useState('');
+  const threatPlan = planForce(threat.count);
+  const selectedThreat = THREAT_TYPES.find((type) => type.id === threat.threat_type);
   const roster = replay?.roster ?? [];
   const platoons = useMemo(() => groupRoster(replay?.roster ?? []), [replay]);
   const selectedId = roster.some((drone) => drone.id === state.selected) ? state.selected : roster[0]?.id ?? state.selected;
@@ -74,6 +82,22 @@ function Worldview() {
   const friendlyCount = swarm ? Object.keys(swarm.friendlies).length : 0;
   const pendingCount = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status === 'pending').length : 0;
   const activeScenario = scenarioInfo(state.scenario);
+  const activeRun = simulation && simulation.id === state.scenario ? simulation : null;
+
+  const launchIntercept = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSimulating(true);
+    setSimulationError('');
+    try {
+      const run = await runSimulation(threat);
+      setSimulation(run);
+      dispatch({ type: 'scenario', scenario: run.id });
+    } catch (caught) {
+      setSimulationError(caught instanceof Error ? caught.message : 'Simulation failed');
+    } finally {
+      setSimulating(false);
+    }
+  };
 
   useEffect(() => {
     document.body.classList.add('worldview-active');
@@ -141,9 +165,10 @@ function Worldview() {
           <li><i className="legend-friendly" aria-hidden="true" />Friendly</li>
           <li><i className="legend-opposing" aria-hidden="true" />Opposing</li>
           <li><i className="legend-unknown" aria-hidden="true" />Friendly transit · identity varies</li>
+          <li><i className="legend-observer" aria-hidden="true" />Section observer (hovers above)</li>
           <li><i className="legend-vacant" aria-hidden="true" />Vacant cell</li>
         </ul>
-        <div className="plot-title" aria-hidden="true"><span>MARINA BAY / 01°17′N</span><span>103°51′E / ALT 0—600M</span></div>
+        <div className="plot-title" aria-hidden="true"><span>MARINA EAST · LAUNCH FIELD</span><span>{formatSite()} · THREAT FROM THE SEA</span></div>
         {swarm && <SideElevation swarm={swarm} selected={selectedId} headingRad={headingRad} />}
         <div className={`event-marker ${moment.event === 'MISS' ? 'alert' : ''}`}>
           <strong>{moment.event}</strong><span>{moment.description}</span>
@@ -180,6 +205,33 @@ function Worldview() {
           ))}
           {activeScenario && <p className="scenario-brief" data-testid="scenario-brief"><b>{activeScenario.force}</b>{activeScenario.summary}</p>}
         </div>
+        <form className="rail-group threat-builder" data-testid="threat-builder" onSubmit={launchIntercept}>
+          <span className="rail-label">INCOMING THREAT · OPERATOR INPUT</span>
+          <label>Enemy drone type &amp; size
+            <select data-testid="threat-type" value={threat.threat_type} onChange={(event) => setThreat({ ...threat, threat_type: event.target.value })}>
+              {THREAT_TYPES.map((type) => <option key={type.id} value={type.id}>{type.title} · {type.size_m} m</option>)}
+            </select>
+          </label>
+          {selectedThreat && <p className="threat-spec" data-testid="threat-spec">{selectedThreat.speed_mps} m/s · {selectedThreat.altitude_m[0]}–{selectedThreat.altitude_m[1]} m altitude · seen at {(selectedThreat.detection_range_m / 1000).toFixed(1)} km · kill radius {selectedThreat.kill_radius_m} m</p>}
+          <label>Enemy swarm size (drones)
+            <input data-testid="threat-count" type="number" min={1} max={SIZING.max_hostiles} step={1} required value={threat.count} onChange={(event) => setThreat({ ...threat, count: Math.max(1, Math.min(SIZING.max_hostiles, Number(event.target.value) || 1)) })} />
+          </label>
+          <label>Enemy formation
+            <select data-testid="threat-formation" value={threat.formation} onChange={(event) => setThreat({ ...threat, formation: event.target.value })}>
+              {FORMATIONS.map((formation) => <option key={formation.id} value={formation.id}>{formation.title}</option>)}
+            </select>
+          </label>
+          <label>Scenario seed
+            <input data-testid="threat-seed" type="number" min={0} max={2147483647} step={1} required value={threat.seed} onChange={(event) => setThreat({ ...threat, seed: Math.max(0, Math.floor(Number(event.target.value) || 0)) })} />
+          </label>
+          <p className="force-plan" data-testid="force-plan">
+            <b>ACTIVATE {threatPlan.sections} SECTIONS</b>
+            {threatPlan.shooters} shooters + {threatPlan.observers} observers · {threatPlan.screen_sections} screen, {threatPlan.reserve_sections} reserve
+          </p>
+          <button type="submit" data-testid="threat-launch" className="launch-button" disabled={simulating}>{simulating ? 'SIMULATING…' : 'LAUNCH INTERCEPT'}</button>
+          {simulationError && <p className="threat-error" role="alert">{simulationError}</p>}
+          {activeRun && <p className="scenario-brief" data-testid="run-brief"><b>{activeRun.name}</b>{activeRun.metrics.neutralized} intercepted · {activeRun.metrics.leaked} leaked · {activeRun.metrics.backups} observer backups · {activeRun.metrics.duplicate_pursuits} duplicate · {activeRun.metrics.friendly_collisions} collisions</p>}
+        </form>
         <div className="rail-group order-of-battle" data-testid="order-of-battle">
           <span className="rail-label">ORDER OF BATTLE</span>
           <p>{roster.length} FRIENDLY · {platoons.length} PLT · {sectionCount} SEC</p>
@@ -235,8 +287,12 @@ function Worldview() {
                 {platoon.sections.map((section) => (
                   <div className="section" key={section.id}>
                     <small>{section.id === '—' ? '' : section.id}</small>
+                    {section.drones.filter((drone) => drone.role === 'observer').map((drone) => {
+                      const status = swarm?.drones[drone.id]?.status;
+                      return <button key={drone.id} data-testid={`unit-${drone.id}`} className={`drone-chip observer-chip ${status ?? 'unknown'}${selectedId === drone.id ? ' selected' : ''}`} title={`${drone.callsign} · ${status ? DRONE_STATUS_LABELS[status] : 'NO DATA'}`} aria-label={`${drone.callsign} observer ${status ? DRONE_STATUS_LABELS[status] : 'NO DATA'}`} aria-pressed={selectedId === drone.id} onClick={() => dispatch({ type: 'select', id: drone.id })} />;
+                    })}
                     <div className="section-grid">
-                      {section.drones.map((drone) => {
+                      {section.drones.filter((drone) => drone.role !== 'observer').map((drone) => {
                         const status = swarm?.drones[drone.id]?.status;
                         return (
                           <button

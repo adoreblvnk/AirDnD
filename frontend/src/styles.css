@@ -347,3 +347,20 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 1px solid 
 .timeline-marker.wave-detected { background: #ff5a4a; border-radius: 1px; transform: rotate(45deg); }
 .timeline-marker:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Threat builder and 9+1 section roster. */
+.command-rail { overflow-y: auto; }
+.threat-builder { display: grid; gap: 6px; }
+.threat-builder label { display: grid; gap: 3px; color: var(--muted); font: 500 9px/1.2 "Inter Tight", sans-serif; letter-spacing: .04em; }
+.threat-builder select, .threat-builder input { width: 100%; padding: 5px 6px; background: #0b161a; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; font: 500 11px/1.2 "Inter", sans-serif; }
+.threat-builder select:focus-visible, .threat-builder input:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.force-plan { margin: 2px 0 0; color: var(--muted); font: 400 10px/1.35 "Inter", sans-serif; }
+.force-plan b { display: block; color: var(--blue); font: 600 10px/1.3 "Inter Tight", sans-serif; letter-spacing: .05em; }
+.launch-button { width: 100%; padding: 7px; border: 1px solid var(--blue); border-radius: 6px; background: rgba(88,168,216,.14); color: var(--ink); font: 600 10px/1 "Inter Tight", sans-serif; letter-spacing: .06em; cursor: pointer; }
+.launch-button:disabled { opacity: .6; cursor: progress; }
+.threat-error { margin: 0; color: var(--amber); font-size: 10px; }
+.threat-spec { margin: -2px 0 2px; color: var(--muted); font: 400 9px/1.35 "Inter", sans-serif; }
+.fleet-select button.drone-chip.observer-chip { width: 48px; height: 8px; margin: 0 0 4px; border-radius: 4px; background: #c7a6ff; }
+.fleet-select button.drone-chip.expended { background: transparent; border-style: dashed; opacity: .5; }
+.fleet-select button.drone-chip.observing { background: #c7a6ff; }
+.legend-observer { border-radius: 50%; background: #c7a6ff; border: 2px solid #061014; }

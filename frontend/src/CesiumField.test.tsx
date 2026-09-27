@@ -102,8 +102,8 @@ const swarm: SwarmFrame = {
   vacant: [],
 };
 const roster = [
-  { id: 'I000', callsign: 'A1-1-1', company: 'A', platoon: 'A1', section: 'A1-1', phase: 'initial' as const },
-  { id: 'I001', callsign: 'A1-1-2', company: 'A', platoon: 'A1', section: 'A1-1', phase: 'initial' as const },
+  { id: 'I000', callsign: 'A1-1-1', company: 'A', platoon: 'A1', section: 'A1-1', phase: 'initial' as const, role: 'shooter' as const },
+  { id: 'I001', callsign: 'A1-1-2', company: 'A', platoon: 'A1', section: 'A1-1', phase: 'initial' as const, role: 'shooter' as const },
 ];
 
 describe('CesiumField', () => {

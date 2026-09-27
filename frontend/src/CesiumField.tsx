@@ -3,6 +3,7 @@ import { Viewer } from 'resium';
 import { ArcType, Cartesian2, Cartesian3, Color, ConstantProperty, CustomDataSource, Entity, HeadingPitchRange, HeightReference, HorizontalOrigin, IonGeocodeProviderType, LabelStyle, Math as CesiumMath, Matrix4, NearFarScalar, ScreenSpaceEventType, VerticalOrigin, Viewer as CesiumViewer } from 'cesium';
 import { replayPosition, type DroneStatus, type Focus, type FriendlyState, type HostileStatus, type Perspective, type ReplayFrame, type RosterDrone, type SwarmFrame } from './worldview';
 import { loadGooglePhotorealisticTiles } from './googlePhotorealisticTiles';
+import { localHeadingToWorld, localToGeo, worldHeadingToLocal } from './theatre';
 
 interface Props {
   frame?: ReplayFrame;
@@ -31,13 +32,10 @@ interface Registry {
 }
 export interface Pose { target: number[]; heading: number; pitch: number; range: number }
 
-const center = { lon: 103.8565, lat: 1.2835 };
 // Simulator positions are local ENU metres (x east, y north, z up). The engagement box
 // (front 0-900 m, screen near y=0, hostiles near y=1400, pads near y=-700) is centred on the
 // map origin so the whole battle sits over Marina Bay.
-const ENU_ORIGIN = [450, 500];
-const METRES_PER_DEG_LAT = 110_574;
-const METRES_PER_DEG_LON = 111_320 * Math.cos((center.lat * Math.PI) / 180);
+const FRONT_CENTRE = [450, 0, 200];
 const blue = Color.fromCssColorString('#58a8d8');
 const cyan = Color.fromCssColorString('#77d4e8');
 const red = Color.fromCssColorString('#ff5a4a');
@@ -49,9 +47,10 @@ const violet = Color.fromCssColorString('#c7a6ff');
 const outline = Color.fromCssColorString('#061014');
 const PAD_CLEARANCE_M = 20;
 const pos = (lon: number, lat: number, height: number) => Cartesian3.fromDegrees(lon, lat, height);
-export const enu = (value: readonly number[]) => pos(center.lon + (value[0] - ENU_ORIGIN[0]) / METRES_PER_DEG_LON, center.lat + (value[1] - ENU_ORIGIN[1]) / METRES_PER_DEG_LAT, value[2]);
+// Local simulator metres -> globe, via configs/theatre.json (Marina East pads, +y out to sea).
+export const enu = (value: readonly number[]) => { const geo = localToGeo(value); return pos(geo.lon, geo.lat, geo.height); };
 
-const droneColors: Record<DroneStatus, Color> = { pad: slate, launching: cyan, screen: blue, committed: cyan, reserve: slate, pursuit: amber, engaging: chalk, returning: blue, 'stood-down': slate, aborting: amber, rth: amber, refilling: violet, docked: slate };
+const droneColors: Record<DroneStatus, Color> = { pad: slate, launching: cyan, screen: blue, observing: violet, committed: cyan, reserve: slate, pursuit: amber, engaging: chalk, returning: blue, 'stood-down': slate, aborting: amber, rth: amber, refilling: cyan, docked: slate, expended: slate };
 const hostileColors: Record<HostileStatus, Color> = { pending: red, inbound: red, tracked: red, neutralized: green, leaked: amber };
 
 // Markers are drawn on top of the 3D tiles (depth test disabled), with a dark outline so they
@@ -109,7 +108,7 @@ export function followPose(focus: Focus, swarm: SwarmFrame, sector: boolean): Po
   }
   if (focus.kind === 'area' && focus.points.length) return frameArea(focus.points, sector);
   const points = [...Object.values(swarm.drones), ...Object.values(swarm.hostiles).filter((hostile) => hostile.status !== 'pending')].map((item) => item.position);
-  if (!points.length) return { target: [ENU_ORIGIN[0], ENU_ORIGIN[1], 200], heading: 0, pitch: CesiumMath.toRadians(-40), range: 1600 };
+  if (!points.length) return { target: FRONT_CENTRE, heading: 0, pitch: CesiumMath.toRadians(-40), range: 1600 };
   const pose = frameArea(points, sector);
   return { ...pose, pitch: CesiumMath.toRadians(-40), range: Math.max(500, pose.range * (sector ? 0.55 : 0.9)) };
 }
@@ -170,8 +169,11 @@ export default function CesiumField(props: Props) {
         sources.push(geometry, swarm, hostile, interceptor, observer);
         sources.forEach((source) => viewer.dataSources.add(source));
         // Defended zone and coastal pads behind the screen, and the screen line itself.
-        geometry.entities.add({ position: enu([450, -420, 20]), ellipse: { semiMajorAxis: 180, semiMinorAxis: 180, height: 20, material: Color.fromAlpha(red, 0.06), outline: true, outlineColor: Color.fromAlpha(red, 0.5) } });
-        geometry.entities.add({ polyline: { positions: [enu([0, 70, 250]), enu([900, 70, 250])], width: 1, arcType: ArcType.NONE, material: Color.fromAlpha(blue, 0.35) } });
+        // Launch field at Marina East (pads), the defended area behind it, and the screen line out over the water.
+        geometry.entities.add({ position: enu([450, -760, 12]), ellipse: { semiMajorAxis: 520, semiMinorAxis: 140, rotation: 0, height: 12, material: Color.fromAlpha(blue, 0.05), outline: true, outlineColor: Color.fromAlpha(blue, 0.45) }, label: { text: 'LAUNCH · MARINA EAST OPEN FIELD', font: '600 12px ui-monospace, monospace', fillColor: chalk, outlineColor: outline, outlineWidth: 4, style: LabelStyle.FILL_AND_OUTLINE, pixelOffset: new Cartesian2(0, -18), disableDepthTestDistance: Number.POSITIVE_INFINITY } });
+        geometry.entities.add({ position: enu([450, -900, 12]), ellipse: { semiMajorAxis: 160, semiMinorAxis: 160, height: 12, material: Color.fromAlpha(red, 0.05), outline: true, outlineColor: Color.fromAlpha(red, 0.45) } });
+        geometry.entities.add({ polyline: { positions: [enu([0, 50, 150]), enu([900, 50, 150])], width: 1, arcType: ArcType.NONE, material: Color.fromAlpha(blue, 0.35) } });
+        geometry.entities.add({ position: enu([450, 2600, 20]), label: { text: 'SEA APPROACH · SINGAPORE STRAIT', font: '600 12px ui-monospace, monospace', fillColor: Color.fromAlpha(red, 0.9), outlineColor: outline, outlineWidth: 4, style: LabelStyle.FILL_AND_OUTLINE, disableDepthTestDistance: Number.POSITIVE_INFINITY } });
         entities.set('INT-SELF', addPoint(interceptor, 'INT-SELF', blue, enu([0, 0, 250]), 'SELF', 12)); entities.set('INT-THREAT', addPoint(interceptor, 'INT-THREAT', amber, enu([0, 1400, 150]), 'LOCAL', 12)); entities.set('INT-LINE', addLine(interceptor, 'INT-LINE', cyan, 3)); entities.set('INT-BASKET', interceptor.entities.add({ id: 'INT-BASKET', position: enu([0, 1400, 150]), ellipse: { semiMajorAxis: 60, semiMinorAxis: 60, height: 150, material: Color.fromAlpha(cyan, 0.05), outline: true, outlineColor: cyan } })); entities.set('INT-UNCERTAINTY', interceptor.entities.add({ id: 'INT-UNCERTAINTY', position: enu([0, 1400, 150]), ellipse: { semiMajorAxis: 90, semiMinorAxis: 45, height: 150, material: Color.fromAlpha(amber, 0.08), outline: true, outlineColor: amber } }));
         entities.set('OBS-SELF', addPoint(observer, 'OBS-SELF', blue, enu([0, 0, 250]), 'OBSERVER', 12)); entities.set('OBS-THREAT', addPoint(observer, 'OBS-THREAT', amber, enu([0, 1400, 150]), 'LOCAL', 12)); entities.set('OBS-SIGHT', addLine(observer, 'OBS-SIGHT', amber, 3)); entities.set('OBS-WINDOW', observer.entities.add({ id: 'OBS-WINDOW', position: enu([0, 1400, 150]), ellipse: { semiMajorAxis: 120, semiMinorAxis: 120, height: 150, material: Color.fromAlpha(cyan, 0.08), outline: true, outlineColor: cyan } }));
         entities.set('HOSTILE-SELF', addPoint(hostile, 'HOSTILE-SELF', red, enu([0, 1400, 150]), 'HOSTILE · SELF', 12)); entities.set('HOSTILE-CONTACT', addPoint(hostile, 'HOSTILE-CONTACT', amber, enu([0, 0, 250]), 'OPTICAL CONTACT', 12)); entities.set('HOSTILE-ROUTE', addLine(hostile, 'HOSTILE-ROUTE', Color.fromAlpha(red, 0.65), 2));
@@ -189,18 +191,19 @@ export default function CesiumField(props: Props) {
             range: current.range + (desired.range - current.range) * t,
           };
           currentPose.current = next;
-          viewer.camera.lookAt(enu(next.target), new HeadingPitchRange(next.heading, next.pitch, next.range));
+          viewer.camera.lookAt(enu(next.target), new HeadingPitchRange(localHeadingToWorld(next.heading), next.pitch, next.range));
         }));
         // Report the camera heading so 2D panels can be drawn from the same point of view.
         removers.push(viewer.scene.postRender.addEventListener(() => {
           const heading = viewer.camera.heading;
           if (headingRef.current === undefined || Math.abs(Math.atan2(Math.sin(heading - headingRef.current), Math.cos(heading - headingRef.current))) > CesiumMath.toRadians(3)) {
             headingRef.current = heading;
-            onHeadingRef.current?.(heading);
+            onHeadingRef.current?.(worldHeadingToLocal(heading));
           }
         }));
         registryRef.current = { swarm, interceptor, observer, hostile, geometry, entities, drones: new Map(), hostiles: new Map(), friendlies: new Map(), links: [], drops: new Map(), vacant: new Map() };
-        viewer.camera.setView({ destination: enu([450, -900, 1100]), orientation: { heading: 0, pitch: CesiumMath.toRadians(-40), roll: 0 } });
+        // Start behind the launch field looking out to sea along the threat axis.
+        viewer.camera.setView({ destination: enu([450, -1700, 900]), orientation: { heading: localHeadingToWorld(0), pitch: CesiumMath.toRadians(-30), roll: 0 } });
         viewer.scene.requestRender();
         setTilesReady(true);
       } catch (error) {
@@ -236,10 +239,11 @@ export default function CesiumField(props: Props) {
         let record = registry.drones.get(drone.id);
         if (!record) { record = { entity: addPoint(registry.swarm, drone.id, blue, enu(drone.position), '', 9) }; registry.drones.set(drone.id, record); }
         setPosition(record.entity, enu(drone.position));
+        record.entity.show = drone.status !== 'expended';
         const isSelected = drone.id === props.selected;
         const key = `${drone.status}|${isSelected}`;
         if (record.key !== key) {
-          setPoint(record.entity, isSelected ? chalk : droneColors[drone.status], isSelected ? 14 : ['engaging', 'rth', 'refilling', 'launching', 'aborting'].includes(drone.status) ? 11 : 9);
+          setPoint(record.entity, isSelected ? chalk : droneColors[drone.status], isSelected ? 14 : ['engaging', 'rth', 'refilling', 'launching', 'aborting', 'observing'].includes(drone.status) ? 11 : 9);
           const roster = callsigns.get(drone.id);
           // Label the selected drone and each section lead so the 3x3 blocks stay readable.
           setLabel(record.entity, isSelected ? roster?.callsign ?? drone.id : roster?.callsign.endsWith('-1') ? roster.section : '');
@@ -271,7 +275,7 @@ export default function CesiumField(props: Props) {
       registry.links.slice(swarm.links.length).forEach((line) => { line.show = false; });
       // Vertical drop lines to the surface make every altitude unambiguous (concept v2).
       const airborne: Array<[string, number[], Color, boolean]> = [
-        ...Object.values(swarm.drones).map((drone): [string, number[], Color, boolean] => [drone.id, drone.position, Color.fromAlpha(blue, 0.28), drone.position[2] > PAD_CLEARANCE_M]),
+        ...Object.values(swarm.drones).map((drone): [string, number[], Color, boolean] => [drone.id, drone.position, Color.fromAlpha(drone.status === 'observing' ? violet : blue, 0.3), drone.status !== 'expended' && drone.position[2] > PAD_CLEARANCE_M]),
         ...Object.values(swarm.hostiles).map((hostile): [string, number[], Color, boolean] => [hostile.id, hostile.position, Color.fromAlpha(red, 0.35), hostile.status !== 'pending' && hostile.status !== 'neutralized']),
         ...Object.values(swarm.friendlies).map((friendly): [string, number[], Color, boolean] => [friendly.id, friendly.position, Color.fromAlpha(amber, 0.35), friendly.position[0] > -200 && friendly.position[0] < 1100]),
       ];
@@ -332,7 +336,7 @@ export default function CesiumField(props: Props) {
     const pose = followPose(props.swarm.focus, props.swarm, props.sector);
     const horizontal = pose.range * Math.cos(-pose.pitch);
     const eye = [pose.target[0] - horizontal * Math.sin(pose.heading), pose.target[1] - horizontal * Math.cos(pose.heading), pose.target[2] + pose.range * Math.sin(-pose.pitch)];
-    viewer.camera.flyTo({ destination: enu(eye), orientation: { heading: pose.heading, pitch: pose.pitch, roll: 0 }, duration: reducedMotion() ? 0 : 0.8 });
+    viewer.camera.flyTo({ destination: enu(eye), orientation: { heading: localHeadingToWorld(pose.heading), pitch: pose.pitch, roll: 0 }, duration: reducedMotion() ? 0 : 0.8 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tilesReady, props.replayKey, props.sector, props.swarm, props.follow]);
 

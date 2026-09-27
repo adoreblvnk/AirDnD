@@ -13,9 +13,11 @@ import uuid
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from typing import Literal
 import torch
 
 from .model import export_onnx_int8, train_belief_model
+from .engagement import FORMATIONS as THREAT_FORMATIONS, SIZING, THREAT_TYPES, THREATS, ThreatConfig, plan_force, run_engagement
 from .simulation import FIXED_REPLAYS
 
 _SCENARIO_ID = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -63,13 +65,21 @@ def _training_artifact(path: Path, data_root: Path, format_name: str) -> dict[st
     }
 
 
-def _load_scenario(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if "events" not in data:
-        return data
-    scenario_id = path.stem
+class SimulationRunRequest(BaseModel):
+    threat_type: Literal[tuple(THREAT_TYPES)] = "medium"  # type: ignore[valid-type]
+    count: int = Field(default=12, ge=1, le=SIZING["max_hostiles"])
+    formation: Literal[THREAT_FORMATIONS] = "wedge"  # type: ignore[valid-type]
+    seed: int = Field(default=7, ge=0, le=2_147_483_647)
+    method: Literal["airdnd", "independent_greedy"] = "airdnd"
+
+
+_SIMULATION_ID = re.compile(r"^sim-[0-9a-f]{32}$")
+_MAX_STORED_SIMULATIONS = 8
+
+
+def _frames_from_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     frames = []
-    for event in data["events"]:
+    for event in events:
         local = event.get("agent_local", {})
         agent_id = local.get("agent_id")
         frame = {
@@ -81,6 +91,15 @@ def _load_scenario(path: Path) -> dict[str, Any]:
             "event_kind": event.get("kind"),
         }
         frames.append(frame)
+    return frames
+
+
+def _load_scenario(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if "events" not in data:
+        return data
+    scenario_id = path.stem
+    frames = _frames_from_events(data["events"])
     return {
         "scenario": {
             "id": scenario_id,
@@ -169,6 +188,8 @@ def create_app(*, data_root: Path | str = Path("artifacts")) -> FastAPI:
     app.state.data_root = Path(data_root)
     app.state.training_runs = {}
     app.state.training_tasks = set()
+    app.state.simulations = {}
+    app.state.simulation_lock = asyncio.Lock()
     app.state.training_semaphore = asyncio.Semaphore(1)
 
     async def execute_training(run_id: str, request: TrainingRunRequest) -> None:
@@ -299,6 +320,39 @@ def create_app(*, data_root: Path | str = Path("artifacts")) -> FastAPI:
             raise HTTPException(status_code=404, detail="Training artifact not found")
         return FileResponse(target, filename=target.name)
 
+    @app.get("/api/threats")
+    def threats() -> dict[str, Any]:
+        return THREATS
+
+    @app.get("/api/force-plan")
+    def force_plan(hostiles: int = Query(ge=1, le=SIZING["max_hostiles"])) -> dict[str, int]:
+        return plan_force(hostiles).to_dict()
+
+    @app.post("/api/simulations", status_code=201)
+    async def run_simulation(request: SimulationRunRequest) -> dict[str, Any]:
+        """Run the time-stepped intercept engine for a chosen threat (one run at a time)."""
+        config = ThreatConfig(request.threat_type, request.count, request.formation, request.seed, request.method)
+        async with app.state.simulation_lock:
+            result = await asyncio.to_thread(run_engagement, config)
+        simulation_id = f"sim-{uuid.uuid4().hex}"
+        kind = THREAT_TYPES[config.threat_type]
+        name = f"{config.count} x {kind['title']} ? {config.formation}"
+        app.state.simulations[simulation_id] = {
+            "scenario": {"id": simulation_id, "name": name, "seed": config.seed, "fixed": True},
+            "frames": _frames_from_events(result.to_dict()["events"]),
+        }
+        while len(app.state.simulations) > _MAX_STORED_SIMULATIONS:
+            app.state.simulations.pop(next(iter(app.state.simulations)))
+        metrics = result.metrics
+        return {
+            "id": simulation_id,
+            "name": name,
+            "config": request.model_dump(),
+            "force_plan": plan_force(config.count).to_dict(),
+            "metrics": {"neutralized": metrics.neutralized, "leaked": metrics.leaked, "duplicate_pursuits": metrics.duplicate_pursuits, "backups": metrics.recovery_count, "friendly_collisions": metrics.friendly_collisions, "minimum_separation_m": metrics.minimum_separation_m},
+            "evidence_class": "simulation_evidence",
+        }
+
     @app.get("/api/scenarios")
     def scenarios() -> dict[str, list[dict[str, Any]]]:
         items = []
@@ -320,12 +374,17 @@ def create_app(*, data_root: Path | str = Path("artifacts")) -> FastAPI:
         observer_id: str | None = None,
         evaluator_overlay: bool = False,
     ) -> dict[str, Any]:
-        path = _replay_path(app.state.data_root, scenario_id)
-        if _SCENARIO_ID.fullmatch(scenario_id) is None or not path.is_file():
-            raise HTTPException(status_code=404, detail="Scenario not found")
-        replay_data = _load_scenario(path)
-        if replay_data.get("scenario", {}).get("fixed") is not True:
-            raise HTTPException(status_code=404, detail="Scenario not found")
+        if _SIMULATION_ID.fullmatch(scenario_id):
+            replay_data = app.state.simulations.get(scenario_id)
+            if replay_data is None:
+                raise HTTPException(status_code=404, detail="Simulation run not found")
+        else:
+            path = _replay_path(app.state.data_root, scenario_id)
+            if _SCENARIO_ID.fullmatch(scenario_id) is None or not path.is_file():
+                raise HTTPException(status_code=404, detail="Scenario not found")
+            replay_data = _load_scenario(path)
+            if replay_data.get("scenario", {}).get("fixed") is not True:
+                raise HTTPException(status_code=404, detail="Scenario not found")
         if perspective == "locals":
             # Every interceptor's own sanitized local view, keyed by agent, in one stream so
             # a swarm display does not need one request per drone. No truth is included.

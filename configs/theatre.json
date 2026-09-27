@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "site": "Marina East open field",
+  "note": "Maps the engine's local frame (x across the front, y out to sea along the threat axis, z up) onto the globe. origin_local_m is the local point placed at origin (the centre of the launch pads). threat_bearing_deg is the compass bearing of +y, i.e. the direction the enemy comes from (the Singapore Strait). Edit these to move the site or the threat axis.",
+  "origin": { "lat": 1.2895, "lon": 103.8756 },
+  "origin_local_m": [450, -760],
+  "threat_bearing_deg": 150,
+  "height_offset_m": 10
+}
