@@ -13,7 +13,7 @@
       "scope": "generated paired simulation"
     },
     "AC-026": {
-      "passed": true,
+      "passed": false,
       "scope": "benchmark host identity"
     },
     "AC-031": {
@@ -46,14 +46,11 @@
   "configuration_hash": "d0ab6d35b96cae8c264d9582b953dca235a3dc742a44cca0a25332bd8cd477ff",
   "evidence_class": "simulation_evidence",
   "final": true,
-  "git_revision": "e17e5db5a1ab05ceafff02120b0cd51449bbd546",
+  "git_revision": "49db4a7c4158d068af5daeb7921e13539c63849d",
   "host": {
     "artifact": "reports/system_profile.json",
-    "machine_model": "Mac15,13",
-    "memory_gb": 24,
-    "model": "MacBook Air Apple M3",
-    "privacy": "Serial number, platform UUID, and device identifiers intentionally omitted",
-    "processor_layout": "proc 8:4:4:0",
+    "memory_gb": null,
+    "model": "AMD64",
     "system_profile_artifact": "reports/system_profile.json"
   },
   "limitations": [

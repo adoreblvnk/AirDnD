@@ -2,7 +2,8 @@ import { useEffect, useMemo, useReducer, useState } from 'react';
 import CesiumField from './CesiumField';
 import SideElevation from './SideElevation';
 import SafetyPanel from './SafetyPanel';
-import { loadReplay, initialState, reducer, replayAt, replayDecision, replayFleetStatus, units, type Perspective, type Replay, type ReplayFrame } from './worldview';
+import { DRONE_STATUS_LABELS, describeReplayError, groupRoster, loadReplay, initialState, reducer, replayAt, replayDecision, replayFleetStatus, replaySwarmAt, rosterCallsign, type Perspective, type Replay } from './worldview';
+import { SCENARIOS, scenarioInfo } from './scenarios';
 import './styles.css';
 
 const perspectives: Array<{ key: Perspective; label: string }> = [
@@ -42,8 +43,9 @@ function BatteryBar({ level }: { level: number }) {
   );
 }
 
-function Icon({ name }: { name: 'play' | 'pause' | 'stepBack' | 'stepForward' }) {
+function Icon({ name }: { name: 'play' | 'pause' | 'stepBack' | 'stepForward' | 'reset' }) {
   const paths = {
+    reset: <><path d="M4 4v12" /><path d="m16 4-9 6 9 6z" /><path d="M10 4v12" /></>,
     play: <path d="M5 3.5 16 10 5 16.5z" />,
     pause: <><path d="M5 4h3v12H5z" /><path d="M12 4h3v12h-3z" /></>,
     stepBack: <><path d="M5 4v12" /><path d="m15 4-8 6 8 6z" /></>,
@@ -52,44 +54,26 @@ function Icon({ name }: { name: 'play' | 'pause' | 'stepBack' | 'stepForward' })
   return <svg viewBox="0 0 20 20" aria-hidden="true">{paths[name]}</svg>;
 }
 
-function TacticalOverlay({ perspective, frame, localId }: { perspective: Perspective; frame: ReplayFrame; localId: string }) {
-  const generated = frame.overview.position;
-  const position = Array.isArray(generated) ? generated as number[] : [0, 1400, 450];
-  const hostileX = Math.max(28, Math.min(78, 52 + position[0] / 40));
-  const hostileY = Math.max(24, Math.min(68, 50 - (position[1] - 1400) / 40));
-  const committers = Object.values(frame.localViews).filter((view) => view.preferred_velocity).map((_view, index) => [27 + index * 6, 71 - index * 4]);
-  return (
-    <svg className="tactical-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      {perspective === 'OVERVIEW' && <>
-        <g className="picket-grid">{[38, 44, 50, 56, 62].map((y) => <line key={`h${y}`} x1="27" y1={y} x2="71" y2={y} />)}{[31, 39, 47, 55, 63, 71].map((x) => <line key={`v${x}`} x1={x} y1="35" x2={x} y2="65" />)}</g>
-        {committers.map(([x, y], index) => <path key={`${frame.frame}-${index}`} className={index === 0 ? 'commit-line primary' : 'commit-line'} d={`M ${x} ${y} L ${hostileX} ${hostileY}`} />)}
-        {(frame.event.event === 'MISS' || frame.event.event === 'OBSERVER CLAIM') && <circle className="coverage-window" cx={hostileX} cy={hostileY} r="8" />}
-      </>}
-      {perspective === 'INTERCEPTOR' && <>
-        <path className="commit-line primary" d={`M 25 72 L ${hostileX} ${hostileY}`} />
-        <circle className="intercept-basket" cx={hostileX} cy={hostileY} r="4" />
-        <ellipse className="track-uncertainty" cx={hostileX} cy={hostileY} rx="6" ry="4" />
-        <text x="25" y="76">{localId} · SELF</text><text x={hostileX + 2} y={hostileY - 2}>LOCAL TRACK</text>
-      </>}
-      {perspective === 'OBSERVER' && <>
-        <path className="sight-line amber" d={`M 29 69 L ${hostileX} ${hostileY}`} />
-        <circle className="coverage-window" cx={hostileX} cy={hostileY} r="9" />
-        <text x="30" y="74">OBSERVER SIGHT LINE</text><text x={hostileX + 10} y={hostileY + 11}>PRIVATE WINDOW</text>
-      </>}
-      {perspective === 'HOSTILE' && <><circle className="hostile-route" cx={hostileX} cy={hostileY} r="1" /><text x={hostileX + 2} y={hostileY - 2}>HOSTILE LOCAL VIEW</text></>}
-    </svg>
-  );
-}
-
 function Worldview() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [replay, setReplay] = useState<Replay | null>(null);
   const [replayError, setReplayError] = useState('');
-  const selectedUnit = units.find((unit) => unit.id === state.selected) ?? units[0];
+  const [headingRad, setHeadingRad] = useState(0);
+  const roster = replay?.roster ?? [];
+  const platoons = useMemo(() => groupRoster(replay?.roster ?? []), [replay]);
+  const selectedId = roster.some((drone) => drone.id === state.selected) ? state.selected : roster[0]?.id ?? state.selected;
   const frame = replay ? replayAt(replay, state.frame) : undefined;
-  const generatedDecision = replay ? replayDecision(replay, state.frame, selectedUnit.agentId) : undefined;
-  const selected = generatedDecision ?? { id: selectedUnit.id, agentId: selectedUnit.agentId, local: 'NO REPLAY DATA', decision: 'AWAIT REPLAY', identity: 'UNKNOWN' };
+  const swarm = replay ? replaySwarmAt(replay, state.frame) : undefined;
+  const generatedDecision = replay ? replayDecision(replay, state.frame, selectedId) : undefined;
+  const selectedDrone = swarm?.drones[selectedId];
+  const selected = generatedDecision ?? { id: rosterCallsign(replay, selectedId), agentId: selectedId, local: 'NO LOCAL TRACK', decision: selectedDrone ? DRONE_STATUS_LABELS[selectedDrone.status] : 'AWAIT REPLAY', identity: 'UNKNOWN' };
   const moment = frame?.event ?? { event: 'GRID SET' as const, description: replayError || 'Loading generated replay' };
+  const hostileCount = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status !== 'pending').length : 0;
+  const neutralizedCount = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status === 'neutralized').length : 0;
+  const sectionCount = platoons.reduce((sum, platoon) => sum + platoon.sections.length, 0);
+  const friendlyCount = swarm ? Object.keys(swarm.friendlies).length : 0;
+  const pendingCount = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status === 'pending').length : 0;
+  const activeScenario = scenarioInfo(state.scenario);
 
   useEffect(() => {
     document.body.classList.add('worldview-active');
@@ -105,7 +89,7 @@ function Worldview() {
         setReplay(loaded);
         dispatch({ type: 'replay-loaded', maxFrame: loaded.frames.at(-1)?.frame ?? 0 });
       })
-      .catch(() => { if (active) setReplayError('REPLAY API UNAVAILABLE'); });
+      .catch((error: unknown) => { if (active) setReplayError(describeReplayError(error)); });
     return () => { active = false; };
   }, [state.scenario]);
 
@@ -132,21 +116,35 @@ function Worldview() {
     return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
   }, [frame]);
 
+  const compareIds = state.pinned.length ? state.pinned : roster.slice(0, 3).map((drone) => drone.id);
+
   return (
     <main className="worldview">
       <div className="map-field" aria-label="Live 3D AirDnD battlespace">
-        {frame && <CesiumField
+        <CesiumField
           frame={frame}
+          swarm={swarm}
+          roster={replay?.roster}
+          cells={replay?.cells}
+          replayKey={replay?.scenarioId}
           playing={state.playing}
+          follow={state.follow}
+          onHeadingChange={setHeadingRad}
           perspective={state.perspective}
           sector={state.view === 'sector'}
           groundTruth={state.groundTruth}
-          selected={state.selected}
+          selected={selectedId}
           onSelect={(id) => dispatch({ type: 'select', id })}
-        />}
-        {frame && <TacticalOverlay perspective={state.perspective} frame={frame} localId={selected.local} />}
-        <div className="plot-title" aria-hidden="true"><span>MARINA BAY / 01°17′N</span><span>103°51′E / ALT 0—900M</span></div>
-        {frame && <SideElevation frame={frame} selected={state.selected} />}
+        />
+        <div className="provenance" data-testid="provenance">RECORDED SIMULATOR EVENTS · NOT FLIGHT DATA</div>
+        <ul className="map-legend" aria-label="Map legend">
+          <li><i className="legend-friendly" aria-hidden="true" />Friendly</li>
+          <li><i className="legend-opposing" aria-hidden="true" />Opposing</li>
+          <li><i className="legend-unknown" aria-hidden="true" />Friendly transit · identity varies</li>
+          <li><i className="legend-vacant" aria-hidden="true" />Vacant cell</li>
+        </ul>
+        <div className="plot-title" aria-hidden="true"><span>MARINA BAY / 01°17′N</span><span>103°51′E / ALT 0—600M</span></div>
+        {swarm && <SideElevation swarm={swarm} selected={selectedId} headingRad={headingRad} />}
         <div className={`event-marker ${moment.event === 'MISS' ? 'alert' : ''}`}>
           <strong>{moment.event}</strong><span>{moment.description}</span>
         </div>
@@ -163,8 +161,9 @@ function Worldview() {
           <span className="rail-label">SCOPE</span>
           <div className="switch-line">
             <button data-testid="view-overview" className={state.view === 'overview' ? 'selected' : ''} onClick={() => dispatch({ type: 'view', view: 'overview' })}>OVERVIEW</button>
-            <button className={state.view === 'sector' ? 'selected' : ''} onClick={() => dispatch({ type: 'view', view: 'sector' })}>SECTOR</button>
+            <button data-testid="view-sector" className={state.view === 'sector' ? 'selected' : ''} onClick={() => dispatch({ type: 'view', view: 'sector' })}>SECTOR</button>
           </div>
+          <button data-testid="camera-follow" className={`follow-toggle${state.follow ? ' selected' : ''}`} aria-pressed={state.follow} onClick={() => dispatch({ type: 'toggle-follow' })}>{state.follow ? 'CAMERA · FOLLOW ACTION' : 'CAMERA · FREE LOOK'}</button>
         </div>
         <div className="rail-group perspective-list">
           <span className="rail-label">PERSPECTIVE</span>
@@ -173,10 +172,19 @@ function Worldview() {
           ))}
         </div>
         <div className="rail-group scenarios">
-          <span className="rail-label">FIXED REPLAY</span>
-          <button data-testid="replay-airdnd" className={state.scenario === 'hit' ? 'selected' : ''} onClick={() => dispatch({ type: 'scenario', scenario: 'hit' })}>HIT / 7F8BD02F</button>
-          <button data-testid="replay-miss" className={state.scenario === 'recovery' ? 'selected' : ''} onClick={() => dispatch({ type: 'scenario', scenario: 'recovery' })}>MISS + RECOVERY / 19A4</button>
-          <button data-testid="replay-naive" className={state.scenario === 'naive' ? 'selected' : ''} onClick={() => dispatch({ type: 'scenario', scenario: 'naive' })}>NAIVE / DUPLICATE PURSUIT</button>
+          <span className="rail-label">SCENARIO</span>
+          {SCENARIOS.map((scenario, index) => (
+            <button key={scenario.id} data-testid={`replay-${scenario.id}`} className={state.scenario === scenario.id ? 'selected' : ''} aria-pressed={state.scenario === scenario.id} title={scenario.summary} onClick={() => dispatch({ type: 'scenario', scenario: scenario.id })}>
+              <span className="scenario-index">{index + 1}</span>{scenario.title.toUpperCase()}
+            </button>
+          ))}
+          {activeScenario && <p className="scenario-brief" data-testid="scenario-brief"><b>{activeScenario.force}</b>{activeScenario.summary}</p>}
+        </div>
+        <div className="rail-group order-of-battle" data-testid="order-of-battle">
+          <span className="rail-label">ORDER OF BATTLE</span>
+          <p>{roster.length} FRIENDLY · {platoons.length} PLT · {sectionCount} SEC</p>
+          <p>{hostileCount} HOSTILE · {neutralizedCount} DOWN{pendingCount ? ` · ${pendingCount} INBOUND LATER` : ''}</p>
+          {friendlyCount > 0 && <p>{friendlyCount} FRIENDLY TRANSIT · NOT ENGAGED</p>}
         </div>
         <label className="truth-toggle">
           <input type="checkbox" checked={state.groundTruth} onChange={() => dispatch({ type: 'toggle-truth' })} />
@@ -188,15 +196,15 @@ function Worldview() {
       <aside data-testid="decision-inspector" className="decision-panel" aria-label="Selected decision detail">
         <header>
           <div><span>SELECTED UNIT</span><strong>{selected.id}</strong></div>
-          <button onClick={() => dispatch({ type: 'pin', id: selected.id })} disabled={state.pinned.length === 3 || state.pinned.includes(selected.id)}>PIN {state.pinned.length}/3</button>
+          <button onClick={() => dispatch({ type: 'pin', id: selectedId })} disabled={state.pinned.length === 3 || state.pinned.includes(selectedId)}>PIN {state.pinned.length}/3</button>
         </header>
         <div className="decision-primary">
-          <span>ACTION</span><strong>{selected.decision}</strong>
+          <span>ACTION</span><strong>{selectedDrone ? DRONE_STATUS_LABELS[selectedDrone.status] : selected.decision}{selectedDrone?.target ? ` · ${selectedDrone.target}` : ''}</strong>
           <p>Generated local decision from immutable replay frame F{String(frame?.frame ?? 0).padStart(3, '0')}.</p>
           <p data-testid="rvo-trace">v<sub>pref</sub> {selected.preferredVelocity?.join('/') ?? 'not recorded'} → v<sub>safe</sub> {selected.safeVelocity?.join('/') ?? 'not recorded'}</p>
         </div>
         <div className="candidate-head"><span>LOCAL CANDIDATES</span><span>UTILITY</span></div>
-        {selected.visibleTracks && selected.visibleTracks.length > 0 ? selected.visibleTracks.map((track) => (
+        {selected.visibleTracks && selected.visibleTracks.length > 0 ? selected.visibleTracks.slice(0, 6).map((track) => (
           <button key={track.track_id} className={track.track_id === selected.local ? 'candidate selected' : 'candidate'} disabled={track.track_id !== selected.local}>
             <span>{track.track_id}<IdentityBadge state={track.identity_state} /></span>
             <b>{track.track_id === selected.local ? selected.utility?.toFixed(2) ?? '—' : '—'}</b>
@@ -213,28 +221,65 @@ function Worldview() {
           <p>v<sub>pref</sub> [{selected.preferredVelocity?.join(', ') ?? 'not recorded'}] · v<sub>safe</sub> [{selected.safeVelocity?.join(', ') ?? 'not recorded'}]</p>
           <p>Safety override: {selected.safetyOverride === undefined ? 'NOT RECORDED' : selected.safetyOverride ? 'ACTIVE' : 'CLEAR'}</p>
         </div>}
-        <SafetyPanel replay={replay} frame={state.frame} agentId={selectedUnit.agentId} />
-        <div className="fleet-select">
-          <span>SELECT UNIT</span>
-          {units.map((unit) => {
-            const decision = replay ? replayDecision(replay, state.frame, unit.agentId) : undefined;
-            const status = replay ? replayFleetStatus(replay, state.frame, unit.agentId) : undefined;
-            return (
-              <button key={unit.id} className={state.selected === unit.id ? 'selected' : ''} onClick={() => dispatch({ type: 'select', id: unit.id })}>
-                <span className="fleet-id">{unit.id}<small>{decision?.decision ?? 'NO DATA'}</small></span>
-                <span className="fleet-status">{status?.lifecycleState ? <><BatteryBar level={status.battery ?? 0} />{Math.round((status.battery ?? 0) * 100)}%<small>{fleetStateLabels[status.lifecycleState]}</small></> : <small>—</small>}</span>
-              </button>
-            );
-          })}
+        <SafetyPanel replay={replay} frame={state.frame} agentId={selectedId} />
+        {selectedDrone && replay && (() => {
+          const status = replayFleetStatus(replay, state.frame, selectedId);
+          return status?.lifecycleState ? <p className="fleet-status selected-status"><BatteryBar level={status.battery ?? 0} />{Math.round((status.battery ?? 0) * 100)}%<small>{fleetStateLabels[status.lifecycleState]}</small></p> : null;
+        })()}
+        <div className="fleet-select" data-testid="fleet-select">
+          <span>SELECT UNIT · {roster.length} DRONES</span>
+          {platoons.map((platoon) => (
+            <div className="platoon" key={platoon.id}>
+              <b className="platoon-id">{platoon.id === '—' ? 'UNITS' : `${platoon.id} PLATOON`}</b>
+              <div className="sections">
+                {platoon.sections.map((section) => (
+                  <div className="section" key={section.id}>
+                    <small>{section.id === '—' ? '' : section.id}</small>
+                    <div className="section-grid">
+                      {section.drones.map((drone) => {
+                        const status = swarm?.drones[drone.id]?.status;
+                        return (
+                          <button
+                            key={drone.id}
+                            data-testid={`unit-${drone.id}`}
+                            className={`drone-chip ${status ?? 'unknown'}${selectedId === drone.id ? ' selected' : ''}`}
+                            title={`${drone.callsign} · ${status ? DRONE_STATUS_LABELS[status] : 'NO DATA'}`}
+                            aria-label={`${drone.callsign} ${status ? DRONE_STATUS_LABELS[status] : 'NO DATA'}`}
+                            aria-pressed={selectedId === drone.id}
+                            onClick={() => dispatch({ type: 'select', id: drone.id })}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </aside>
 
       <section className="timeline" aria-label="Replay timeline">
+        <button className="icon-button" aria-label="Reset replay" data-testid="replay-reset" onClick={() => dispatch({ type: 'reset' })}><Icon name="reset" /></button>
         <button className="icon-button primary" aria-label={state.playing ? 'Pause replay' : 'Play replay'} onClick={() => dispatch({ type: 'toggle-play' })}><Icon name={state.playing ? 'pause' : 'play'} /></button>
         <button className="icon-button" aria-label="Previous frame" onClick={() => dispatch({ type: 'step', delta: -1 })}><Icon name="stepBack" /></button>
         <button className="icon-button" aria-label="Next frame" onClick={() => dispatch({ type: 'step', delta: 1 })}><Icon name="stepForward" /></button>
         <strong>{time}</strong>
-        <input aria-label="Replay frame" type="range" min="0" max={state.maxFrame} value={state.frame} onChange={(event) => dispatch({ type: 'scrub', frame: Number(event.target.value) })} />
+        <div className="timeline-track">
+          <input aria-label="Replay frame" type="range" min="0" max={state.maxFrame} value={state.frame} onChange={(event) => dispatch({ type: 'scrub', frame: Number(event.target.value) })} />
+          <div className="timeline-markers" aria-label="Key events">
+            {(replay?.markers ?? []).map((marker) => (
+              <button
+                key={`${marker.event}-${marker.frame}`}
+                className={`timeline-marker ${marker.event.toLowerCase().replaceAll(' ', '-')}`}
+                style={{ left: `${(marker.frame / Math.max(1, state.maxFrame)) * 100}%` }}
+                aria-label={`Jump to ${marker.event} at frame ${marker.frame}`}
+                title={`${marker.event} · ${marker.label}`}
+                onClick={() => dispatch({ type: 'scrub', frame: marker.frame })}
+              />
+            ))}
+          </div>
+        </div>
         <span>F{String(state.frame).padStart(3, '0')} / F{String(state.maxFrame).padStart(3, '0')}</span>
         <button className="compare-trigger" onClick={() => dispatch({ type: 'toggle-compare' })}>PINNED COMPARISON {state.pinned.length}/3</button>
       </section>
@@ -250,10 +295,9 @@ function Worldview() {
       {state.compareOpen && <section className="comparison" aria-label="Three-drone pinned comparison">
         <header><strong>INDEPENDENT LOCAL VIEWS · SAME PHYSICAL HOSTILE</strong><button onClick={() => dispatch({ type: 'toggle-compare' })}>CLOSE</button></header>
         <div className="comparison-grid">
-          {(state.pinned.length ? state.pinned : ['I-07', 'I-12', 'I-19']).map((id) => {
-            const unit = units.find((item) => item.id === id)!;
-            const decision = replay ? replayDecision(replay, state.frame, unit.agentId) : undefined;
-            return <article key={id}><h2>{id}</h2><p>LOCAL TRACK <b>{decision?.local ?? 'NO DATA'}</b></p><dl><dt>P(leak)</dt><dd>{decision?.leak ?? '—'}{decision?.leak === undefined ? '' : '%'}</dd><dt>P(my action)</dt><dd>{decision?.success ?? '—'}{decision?.success === undefined ? '' : '%'}</dd><dt>P(friendly cover)</dt><dd>{decision?.covered ?? '—'}{decision?.covered === undefined ? '' : '%'}</dd></dl><strong>{decision?.decision ?? 'NO REPLAY DECISION'}</strong></article>;
+          {compareIds.map((id) => {
+            const decision = replay ? replayDecision(replay, state.frame, id) : undefined;
+            return <article key={id}><h2>{rosterCallsign(replay, id)}</h2><p>LOCAL TRACK <b>{decision?.local ?? 'NO DATA'}</b></p><dl><dt>P(leak)</dt><dd>{decision?.leak ?? '—'}{decision?.leak === undefined ? '' : '%'}</dd><dt>P(my action)</dt><dd>{decision?.success ?? '—'}{decision?.success === undefined ? '' : '%'}</dd><dt>P(friendly cover)</dt><dd>{decision?.covered ?? '—'}{decision?.covered === undefined ? '' : '%'}</dd></dl><strong>{decision?.decision ?? 'NO REPLAY DECISION'}</strong></article>;
           })}
         </div>
         <p className="comparison-note">Divergent local IDs. No RF messages exchanged.</p>

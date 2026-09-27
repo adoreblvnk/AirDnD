@@ -59,14 +59,16 @@ The capture intentionally fails instead of silently fabricating or skipping a re
 | `map-ready` | real Google Photorealistic 3D Tiles loaded through Cesium ion |
 | `view-overview` | reveal whole battlespace |
 | `blackout-status` | zero RF counters with separate NIR identity status |
-| `replay-naive` | fixed-seed naive duplicate-pursuit replay |
-| `replay-airdnd` | fixed-seed AirDnD replay |
+| `replay-naive_baseline` | Naive Baseline: fixed-seed independent-greedy replay |
+| `replay-intercept_success` | Intercept Success: fixed-seed AirDnD replay |
 | `perspective-interceptor` | INTERCEPTOR VIEW |
 | `decision-inspector` | local beliefs, utility, hysteresis, basket and velocity trace |
 | `rvo-trace` | preferred and safe velocity / RVO2-3D state |
-| `replay-miss` | fixed-seed miss-recovery replay |
+| `replay-miss_recovery` | Miss & Recovery: fixed-seed miss-recovery replay |
 | `perspective-observer` | OBSERVER VIEW |
 | `nav-evidence` | open the separate evidence page |
 | `evidence-status` | evidence provenance or generate-evidence-first state |
+
+Every scenario button is `replay-<id>`, where `<id>` is the same id used for `evidence/replays/<id>.json`, `/api/scenarios/<id>/replay` and `configs/scenarios.json`: `launch_formation`, `intercept_success`, `miss_recovery`, `multi_wave`, `return_to_base`, `friend_or_foe`, `naive_baseline`.
 
 Timing is anchored to the hook cue start, not chained waits: 0s overview, 5s blackout, 10s naive duplication, 15s local AirDnD intent, 19s decision/RVO, 23s miss recovery, 27s evidence freeze, 30s cut. Startup readiness runs in a separate unrecorded browser. `ffmpeg` emits 749 frames at 25 FPS so the final recording remains below the 30-second acceptance limit.

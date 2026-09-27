@@ -88,3 +88,36 @@ describe('training route', () => {
     expect(screen.getByTestId('nav-training')).toHaveAttribute('href', '/training');
   });
 });
+
+describe('worldview swarm roster', () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it('lists every drone grouped by platoon and 3x3 section and selects on click', async () => {
+    window.history.pushState({}, '', '/');
+    const interceptors = Array.from({ length: 27 }, (_, index) => ({
+      interceptor_id: `I${String(index).padStart(3, '0')}`,
+      callsign: `A1-${Math.floor(index / 9) + 1}-${(index % 9) + 1}`,
+      company: 'A',
+      platoon: 'A1',
+      section: `A1-${Math.floor(index / 9) + 1}`,
+      phase: 'initial',
+      position: [index * 20, 0, 250],
+    }));
+    vi.spyOn(window, 'fetch').mockImplementation(async (input) => jsonResponse(String(input).includes('perspective=overview')
+      ? { scenario_id: 'miss_recovery', frames: [{ frame: 0, time_s: 0, event_kind: 'swarm_initialized', overview: { interceptors, hostiles: Array.from({ length: 9 }, (_, index) => ({ hostile_id: `H00${index}`, position: [index * 100, 1400, 150] })) } }] }
+      : { scenario_id: 'miss_recovery', frames: [{ frame: 0, time_s: 0, local_views: {}, presentation: { label: 'swarms initialized' } }] }));
+
+    render(<App />);
+
+    expect(await screen.findByText('27 FRIENDLY · 1 PLT · 3 SEC')).toBeInTheDocument();
+    expect(screen.getByText('9 HOSTILE · 0 DOWN')).toBeInTheDocument();
+    expect(screen.getByText('A1 PLATOON')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^A1-\d-\d SCREEN$/ })).toHaveLength(27);
+    fireEvent.click(screen.getByTestId('unit-I013'));
+    expect(screen.getByTestId('unit-I013')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('A1-2-5')).toBeInTheDocument();
+  });
+});

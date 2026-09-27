@@ -2,7 +2,7 @@ import hashlib
 import json
 
 from airdnd.benchmark import generate_evidence, paired_interval, run_benchmark
-from airdnd.simulation import BASELINES
+from airdnd.simulation import BASELINES, FIXED_REPLAYS
 
 
 def test_paired_interval_reports_mean_and_95_percent_ci():
@@ -29,8 +29,7 @@ def test_evidence_generation_writes_replay_raw_reports_models_and_valid_manifest
         "raw/benchmark.jsonl",
         "raw/benchmark.csv",
         "reports/benchmark.json",
-        "replays/success.json",
-        "replays/miss_recovery.json",
+        *(f"replays/{scenario_id}.json" for scenario_id in FIXED_REPLAYS),
         "models/belief.pt",
         "models/belief.onnx",
         "models/belief.int8.onnx",

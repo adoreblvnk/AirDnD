@@ -87,7 +87,7 @@ def _write_scenario(root: Path, scenario_id: str = "success") -> None:
 def _write_generated_replay(root: Path) -> None:
     replay_dir = root / "replays"
     replay_dir.mkdir(parents=True)
-    (replay_dir / "success.json").write_text(
+    (replay_dir / "intercept_success.json").write_text(
         json.dumps(
             {
                 "config": {"seed": 101, "method": "airdnd"},
@@ -186,13 +186,13 @@ def test_api_reads_generated_fixed_replay_layout(tmp_path: Path) -> None:
 
     scenarios = client.get("/api/scenarios")
     replay = client.get(
-        "/api/scenarios/success/replay",
+        "/api/scenarios/intercept_success/replay",
         params={"perspective": "local", "observer_id": "I000"},
     )
 
     assert scenarios.json() == {
         "scenarios": [
-            {"id": "success", "name": "Success", "seed": 101, "fixed": True}
+            {"id": "intercept_success", "name": "Intercept Success", "seed": 101, "fixed": True}
         ]
     }
     assert replay.status_code == 200
@@ -213,6 +213,34 @@ def test_api_reads_generated_fixed_replay_layout(tmp_path: Path) -> None:
         }
     ]
     assert download.content == b"seed,method\n101,airdnd\n"
+
+
+def test_locals_perspective_returns_every_sanitized_local_view(tmp_path: Path) -> None:
+    _write_generated_replay(tmp_path)
+    client = TestClient(create_app(data_root=tmp_path))
+
+    response = client.get("/api/scenarios/intercept_success/replay", params={"perspective": "locals"})
+    overview = client.get("/api/scenarios/intercept_success/replay", params={"perspective": "overview"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["perspective"] == {"kind": "locals"}
+    assert payload["frames"][0]["local_views"] == {
+        "I000": {
+            "agent_id": "I000",
+            "local_track_id": "I000-abcd",
+            "noisy_position": [1.1, 2.1, 3.1],
+        }
+    }
+    assert payload["frames"][1]["local_views"] == {}
+    assert payload["frames"][1]["presentation"]["label"] == "coverage expired"
+    encoded = json.dumps(payload)
+    for forbidden in ("truth", "hostile_id", "physical_id", "global_assignments"):
+        assert forbidden not in encoded
+    assert [frame["event_kind"] for frame in overview.json()["frames"]] == [
+        "track_observed",
+        "coverage_expired",
+    ]
 
 
 def test_replay_accepts_path_safe_hyphenated_scenario_ids(tmp_path: Path) -> None:

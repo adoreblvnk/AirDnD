@@ -1,0 +1,4 @@
+# Evidence files are hashed byte-for-byte in evidence/manifest.sha256; never let Git rewrite
+# their line endings, or `shasum -c manifest.sha256` fails on a different OS.
+evidence/replays/*.json -text
+evidence/manifest.sha256 -text

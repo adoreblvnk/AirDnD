@@ -241,22 +241,121 @@ def test_all_five_baselines_execute_and_teacher_uses_ortools_when_installed():
     assert results[-1].teacher_backend == "ortools"
 
 
-def test_fixed_success_and_miss_recovery_replays_are_simulator_outputs():
-    success = run_fixed_replay("success")
-    miss = run_fixed_replay("miss_recovery")
-    ready_agents = {
-        event.truth["interceptor_id"]
-        for event in miss.events
-        if event.kind == "observer_ready"
-    }
-    claim_agents = {
-        event.agent_local["agent_id"]
-        for event in miss.events
-        if event.kind == "observer_claim"
-    }
-    assert any(event.kind == "neutralized" for event in success.events)
-    assert ready_agents == {"I001", "I002"}
-    assert claim_agents <= ready_agents
-    assert any(event.kind == "coverage_expired" for event in miss.events)
-    assert any(event.kind == "observer_claim" for event in miss.events)
-    assert success.config.seed != miss.config.seed
+import functools
+import json
+from pathlib import Path
+
+from airdnd.simulation import ABORT_BATTERY, FIXED_REPLAYS
+
+
+@functools.lru_cache(maxsize=None)
+def _replay(scenario_id):
+    return run_fixed_replay(scenario_id)
+
+
+def _kinds(result, hostile_id=None):
+    return [e.kind for e in result.events if hostile_id is None or e.truth.get("hostile_id") == hostile_id]
+
+
+def test_scenario_catalogue_names_every_fixed_replay_exactly_once():
+    catalogue = json.loads((Path(__file__).resolve().parents[1] / "configs" / "scenarios.json").read_text(encoding="utf-8"))
+    ids = [entry["id"] for entry in catalogue["scenarios"]]
+    assert ids == list(FIXED_REPLAYS)
+    titles = [entry["title"] for entry in catalogue["scenarios"]]
+    assert len(set(titles)) == len(titles)
+    assert all(entry["summary"] and entry["force"] for entry in catalogue["scenarios"])
+
+
+def test_every_fixed_replay_is_a_safe_contiguous_section_swarm():
+    for scenario_id in FIXED_REPLAYS:
+        result = _replay(scenario_id)
+        init = result.events[0]
+        assert init.kind == "swarm_initialized", scenario_id
+        assert len(init.truth["interceptors"]) == result.config.interceptors
+        assert len({d["section"] for d in init.truth["interceptors"]}) == result.config.interceptors // 9
+        frames = [e.presentation["frame"] for e in result.events]
+        assert frames == list(range(len(frames))), scenario_id
+        times = [e.time_s for e in result.events]
+        assert all(b >= a - 1e-9 for a, b in zip(times, times[1:])), scenario_id
+        assert result.metrics.friendly_collisions == 0, scenario_id
+        assert result.metrics.minimum_separation_m >= result.config.minimum_separation_m, scenario_id
+        assert result.metrics.completed, scenario_id
+        assert result.metrics.rf_ground_messages == result.metrics.rf_interdrone_messages == result.metrics.target_assignment_messages == 0
+
+
+def test_launch_formation_flies_sections_from_pads_into_the_grid():
+    result = _replay("launch_formation")
+    init = result.events[0].truth["interceptors"]
+    assert all(d["position"][2] == 15.0 and d["position"][1] < d["cell"][1] - 500 for d in init)
+    kinds = _kinds(result)
+    assert kinds.count("section_launch") == 9 and kinds.count("section_on_station") == 9
+    assert kinds.index("grid_set") < kinds.index("policy_decision")
+    grid_time = next(e.time_s for e in result.events if e.kind == "grid_set")
+    assert all(e.time_s >= grid_time for e in result.events if e.kind in ("policy_decision", "engagement_attempt"))
+
+
+def test_intercept_success_lead_hits_first_and_duplicates_stand_down():
+    result = _replay("intercept_success")
+    assert (result.config.interceptors, result.config.hostiles) == (27, 9)
+    h000 = [e for e in result.events if e.truth.get("hostile_id") == "H000"]
+    assert ("neutralized", "I000") in [(e.kind, e.truth.get("interceptor_id")) for e in h000]
+    assert "claim_cancelled" in [e.kind for e in h000]
+
+
+def test_miss_recovery_reserve_observer_recovers_the_forced_miss():
+    result = _replay("miss_recovery")
+    ready = {e.truth["interceptor_id"] for e in result.events if e.kind == "observer_ready"}
+    claims = {e.agent_local["agent_id"] for e in result.events if e.kind == "observer_claim"}
+    assert ready and all(27 <= int(agent[1:]) < 81 for agent in ready)
+    assert claims and claims <= ready
+    kinds = _kinds(result, "H000")
+    assert kinds.index("coverage_expired") < kinds.index("observer_claim") < kinds.index("neutralized")
+
+
+def test_multi_wave_recovers_engaged_drones_and_refills_cells_before_wave_two():
+    result = _replay("multi_wave")
+    waves = [e for e in result.events if e.kind == "wave_detected"]
+    assert [w.truth["wave"] for w in waves] == [1, 2]
+    assert waves[1].truth["delayed_by_s"] == 0.0 and waves[1].time_s == waves[1].truth["scheduled_time_s"]
+    index = {id(e): i for i, e in enumerate(result.events)}
+    refill_done = next(e for e in result.events if e.kind == "refill_complete")
+    first_return = next(e for e in result.events if e.kind == "rth_docked")
+    assert index[id(first_return)] < index[id(refill_done)] < index[id(waves[1])]
+    claimers = [e for e in result.events if e.kind == "cell_refill_claim"]
+    assert claimers and all(e.agent_local["trigger"] == "observed_vacated_cell" for e in claimers)
+    assert len({e.truth["vacated_by"] for e in claimers}) == len(claimers)  # one reserve per empty cell
+    wave2 = set(waves[1].truth["hostile_ids"])
+    assert all(e.truth["hostile_id"] in wave2 for e in result.events if e.kind == "engagement_attempt" and e.time_s > waves[1].time_s)
+    assert result.metrics.leaked == 0
+
+
+def test_return_to_base_aborts_at_threshold_and_docks_by_dead_reckoning():
+    result = _replay("return_to_base")
+    aborts = [e for e in result.events if e.kind == "abort"]
+    assert aborts and all(e.truth["battery"] <= ABORT_BATTERY for e in aborts)
+    assert all(e.truth["interceptor_id"] in {f"I{i:03d}" for i in range(27)} for e in aborts)  # platoon A1 only
+    docked = {e.truth["interceptor_id"]: e for e in result.events if e.kind == "rth_docked"}
+    assert set(docked) == {e.truth["interceptor_id"] for e in aborts}
+    errors = [e.truth["docking_error_m"] for e in docked.values()]
+    assert 0.0 < max(errors) < 20.0  # INS bias gives a real, bounded dead-reckoning error
+    descent = [e for e in result.events if e.kind == "rth_step" and e.truth["phase"] == "descend"]
+    assert descent
+
+
+def test_friend_or_foe_never_engages_or_calls_friendlies_hostile():
+    result = _replay("friend_or_foe")
+    iff = [e for e in result.events if e.kind == "iff_classification"]
+    states = [state for e in iff for state in e.truth["identity_states"].values()]
+    assert len(iff) == 2 * 9
+    assert "HOSTILE EVIDENCE" not in states
+    assert {"CONFIRMED FRIENDLY", "UNKNOWN"} <= set(states)
+    assert all(e.truth["engaged"] is False for e in iff)
+    assert not any(str(e.truth.get("hostile_id", "")).startswith("F") for e in result.events)
+
+
+def test_naive_baseline_matches_miss_recovery_world_but_not_its_policy():
+    naive, airdnd = _replay("naive_baseline"), _replay("miss_recovery")
+    assert (naive.config.seed, naive.config.hostiles, naive.config.interceptors) == (airdnd.config.seed, airdnd.config.hostiles, airdnd.config.interceptors)
+    assert naive.events[0].truth["hostiles"] == airdnd.events[0].truth["hostiles"]
+    assert naive.config.method == "independent_greedy" and "observer_claim" not in _kinds(naive)
+    assert naive.metrics.leaked > airdnd.metrics.leaked

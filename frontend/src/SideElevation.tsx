@@ -1,51 +1,52 @@
-import { replayPosition, units, type ReplayFrame } from './worldview';
+import type { SwarmFrame } from './worldview';
 
-const MAX_ALT_M = 900;
+const MAX_ALT_M = 600;
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
-function altitudeOf(frame: ReplayFrame, source: 'overview' | string): number | undefined {
-  const position = replayPosition(frame, source);
-  return position ? position[2] : undefined;
+const toY = (altitudeM: number) => 96 - (Math.max(0, Math.min(MAX_ALT_M, altitudeM)) / MAX_ALT_M) * 90;
+
+export function compassPoint(headingRad: number): string {
+  const degrees = ((headingRad * 180) / Math.PI + 360) % 360;
+  return COMPASS[Math.round(degrees / 45) % 8];
 }
 
-function clampY(altitude: number): number {
-  const ratio = Math.max(0, Math.min(1, altitude / MAX_ALT_M));
-  return 100 - ratio * 92 - 4;
-}
-
-// replayPosition(frame, agentId) is that agent's own noisy LOCAL ESTIMATE of the hostile's
-// position (not the interceptor's own physical position, which isn't part of the replay
-// telemetry model) - so this panel compares evaluator TRUTH altitude against each
-// interceptor's independent, possibly-stale local estimate of that same altitude.
-export default function SideElevation({ frame, selected }: { frame: ReplayFrame; selected: string }) {
-  const truthAltitude = altitudeOf(frame, 'overview');
-  const estimates = units
-    .map((unit) => ({ unit, altitude: altitudeOf(frame, unit.agentId) }))
-    .filter((entry): entry is { unit: (typeof units)[number]; altitude: number } => entry.altitude !== undefined);
-
+// Side elevation drawn from the map camera's point of view: the horizontal axis is distance
+// along the direction the camera is looking (ENU x east, y north; heading clockwise from
+// north), so "further away" on the map is further right here, whatever the map orientation.
+export default function SideElevation({ swarm, selected, headingRad = 0 }: { swarm?: SwarmFrame; selected: string; headingRad?: number }) {
+  const drones = swarm ? Object.values(swarm.drones) : [];
+  const hostiles = swarm ? Object.values(swarm.hostiles).filter((hostile) => hostile.status !== 'pending') : [];
+  const friendlies = swarm ? Object.values(swarm.friendlies) : [];
+  const target = swarm?.drones[selected]?.target;
+  const along = (position: number[]) => position[0] * Math.sin(headingRad) + position[1] * Math.cos(headingRad);
+  const depths = [...drones, ...hostiles, ...friendlies].map((item) => along(item.position));
+  const nearest = depths.length ? Math.min(...depths) : 0;
+  const span = Math.max(1, (depths.length ? Math.max(...depths) : 1) - nearest);
+  const toX = (position: number[]) => 6 + ((along(position) - nearest) / span) * 50;
+  const facing = compassPoint(headingRad);
   return (
-    <div className="side-elevation" aria-label="Side elevation: evaluator truth altitude versus each interceptor's local estimate">
-      <span className="side-elevation-label">SIDE ELEVATION</span>
+    <div className="side-elevation" aria-label={`Side elevation looking ${facing}: depth along the camera view against altitude`}>
+      <span className="side-elevation-label">SIDE ELEVATION · LOOKING {facing}</span>
       <svg viewBox="0 0 60 100" preserveAspectRatio="none">
         <line x1="4" y1="96" x2="56" y2="96" className="elevation-surface" />
-        {[0, 300, 600, 900].map((tick) => (
-          <line key={tick} x1="4" y1={clampY(tick)} x2="56" y2={clampY(tick)} className="elevation-tick" />
+        {[0, 200, 400, 600].map((tick) => <line key={tick} x1="4" y1={toY(tick)} x2="56" y2={toY(tick)} className="elevation-tick" />)}
+        {hostiles.map((hostile) => (
+          <circle key={hostile.id} cx={toX(hostile.position)} cy={toY(hostile.position[2])} r={hostile.id === target ? 2.2 : 1.3} className={hostile.status === 'neutralized' ? 'elevation-hostile neutralized' : 'elevation-hostile'}>
+            <title>{hostile.id}: {Math.round(hostile.position[2])}m</title>
+          </circle>
         ))}
-        {truthAltitude !== undefined && (
-          <g transform={`translate(30 ${clampY(truthAltitude)})`}>
-            <circle r="2.4" className="elevation-hostile">
-              <title>Evaluator truth altitude: {Math.round(truthAltitude)}m</title>
-            </circle>
-          </g>
-        )}
-        {estimates.map(({ unit, altitude }, index) => (
-          <g key={unit.id} transform={`translate(${14 + index * 10} ${clampY(altitude)})`}>
-            <circle r="1.8" className={unit.id === selected ? 'elevation-unit selected' : 'elevation-unit'}>
-              <title>{unit.id} local estimate: {Math.round(altitude)}m</title>
-            </circle>
-          </g>
+        {friendlies.map((friendly) => (
+          <circle key={friendly.id} cx={toX(friendly.position)} cy={toY(friendly.position[2])} r={1.5} className="elevation-friendly">
+            <title>{friendly.id}: {Math.round(friendly.position[2])}m</title>
+          </circle>
+        ))}
+        {drones.map((drone) => (
+          <circle key={drone.id} cx={toX(drone.position)} cy={toY(drone.position[2])} r={drone.id === selected ? 2 : 1} className={drone.id === selected ? 'elevation-unit selected' : 'elevation-unit'}>
+            <title>{drone.id}: {Math.round(drone.position[2])}m</title>
+          </circle>
         ))}
       </svg>
-      <div className="side-elevation-scale"><span>900M</span><span>0M</span></div>
+      <div className="side-elevation-scale"><span>{MAX_ALT_M}M</span><span>NEAR → FAR</span></div>
     </div>
   );
 }
