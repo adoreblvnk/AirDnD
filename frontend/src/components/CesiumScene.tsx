@@ -272,6 +272,18 @@ function SectorGeometry() {
 }
 
 
+function zigzagTrack(samples: TrackSample[], id: string, amplitude: number) {
+  const phase = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) * 0.37;
+  return samples.map((sample) => ({
+    ...sample,
+    position: [
+      sample.position[0] + Math.sin(sample.time * 1.35 + phase) * amplitude,
+      sample.position[1],
+      sample.position[2] + Math.sin(sample.time * 0.68 + phase) * amplitude * 0.12,
+    ] as Vec3,
+  }));
+}
+
 function sampledPosition(samples: TrackSample[]) {
   const property = new SampledPositionProperty();
   property.addSamples(
@@ -282,18 +294,24 @@ function sampledPosition(samples: TrackSample[]) {
 }
 
 function ReplayEntities({ model, time, mode, truthOverlay }: Required<Pick<CesiumSceneProps, "time" | "mode" | "truthOverlay">> & Pick<CesiumSceneProps, "model">) {
-  const friendlies = useMemo(() => model ? Array.from(model.tracks.entries()).map(([id, samples]) => ({
-    id,
-    samples,
-    position: sampledPosition(samples),
-    removedAt: model.removedAt.get(id)
-  })) : [], [model]);
-  const hostiles = useMemo(() => model ? Array.from(model.hostileTracks.entries()).map(([id, samples]) => ({
-    id,
-    samples,
-    position: sampledPosition(samples),
-    removedAt: model.removedAt.get(id)
-  })) : [], [model]);
+  const friendlies = useMemo(() => model ? Array.from(model.tracks.entries()).map(([id, samples]) => {
+    const displaySamples = zigzagTrack(samples, id, 18);
+    return {
+      id,
+      samples: displaySamples,
+      position: sampledPosition(displaySamples),
+      removedAt: model.removedAt.get(id)
+    };
+  }) : [], [model]);
+  const hostiles = useMemo(() => model ? Array.from(model.hostileTracks.entries()).map(([id, samples]) => {
+    const displaySamples = zigzagTrack(samples, id, 28);
+    return {
+      id,
+      samples: displaySamples,
+      position: sampledPosition(displaySamples),
+      removedAt: model.removedAt.get(id)
+    };
+  }) : [], [model]);
   const localSelection = useMemo(() => {
     if (!model || (mode !== "forward" && mode !== "observer" && mode !== "identity")) return null;
     const event = mode === "identity"
@@ -456,7 +474,7 @@ function UncertaintyEntities({ model, time }: { model: ReplayModel | null; time:
 
 
 const PROVENANCE: Record<SceneMode, string> = {
-  overview: "Recorded replay tracks · hosted Google 3D context",
+  overview: "Recorded replay timing · accelerated zigzag presentation",
   forward: "Noisy local track · evaluator ground truth masked",
   observer: "Observer local track · private coverage recovery",
   contact: "Recorded simulator outcome · impact event",
