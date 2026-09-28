@@ -6,7 +6,6 @@
     "capture-demo": "node scripts/capture_demo.mjs"
   },
   "devDependencies": {
-    "playwright": "^1.55.0",
-    "playwright-chromium": "^1.63.0"
+    "playwright": "^1.55.0"
   }
 }

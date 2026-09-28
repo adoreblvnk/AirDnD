@@ -1,7 +1,7 @@
 {
   "epochs": 30,
-  "final_loss": 0.4410102665424347,
-  "heldout_final_loss": 0.45003801584243774,
+  "final_loss": 0.4410102367401123,
+  "heldout_final_loss": 0.45003798604011536,
   "heldout_initial_loss": 0.7926707863807678,
   "heldout_samples": 64,
   "heldout_seed": 1000020,
@@ -71,16 +71,16 @@
     1000020000062,
     1000020000063
   ],
-  "initial_loss": 0.7868175506591797,
+  "initial_loss": 0.7868176102638245,
   "label_source": "paired_local_counterfactual_ortools_teacher",
-  "measured_decision_hz_at_p95": 107122.58036871594,
+  "measured_decision_hz_at_p95": 17031.422975389596,
   "model_input": "agent-local track history only",
   "onnx_int8_latency_ms": {
-    "p50": 0.00875,
-    "p95": 0.009335099999999999,
-    "p99": 0.009545329999999998
+    "p50": 0.0466,
+    "p95": 0.058714999999999996,
+    "p99": 0.07223399999999996
   },
-  "onnx_int8_size_bytes": 20232,
+  "onnx_int8_size_bytes": 20395,
   "onnx_runtime_verified": true,
   "quantization": "dynamic INT8",
   "samples": 256,

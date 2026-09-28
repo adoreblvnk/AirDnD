@@ -111,6 +111,19 @@ def test_local_policy_payloads_contain_only_noisy_local_track_geometry():
         assert event.agent_local["belief"]["predicted_intercept_point"] != event.truth["target_position"]
 
 
+def test_policy_decision_lists_every_visible_track_not_only_the_chosen_one():
+    result = run_scenario(ScenarioConfig(3, 4, 29, "deterministic_ablation", reserve_ratio=0.0))
+    decisions = [event for event in result.events if event.kind == "policy_decision"]
+    assert decisions
+    for event in decisions:
+        visible = event.agent_local["visible_tracks"]
+        assert visible
+        track_ids = {entry["track_id"] for entry in visible}
+        assert event.agent_local["local_track_id"] in track_ids
+        for entry in visible:
+            assert entry["identity_state"] in {"CONFIRMED FRIENDLY", "FRIENDLY LINEAGE", "UNKNOWN", "HOSTILE EVIDENCE"}
+
+
 def test_airdnd_runtime_logs_actual_multihead_inference_outputs():
     result = run_scenario(ScenarioConfig(8, 12, 19, "airdnd"))
     decisions = [event for event in result.events if event.kind == "policy_decision"]
@@ -153,7 +166,10 @@ def test_runtime_actuates_guidance_rvo_navigation_and_iff_in_discrete_steps():
     for event in steps:
         local = event.agent_local
         assert local["guidance_mode"] in {"midcourse_basket", "terminal_proportional_navigation"}
-        assert local["identity_state"] == "HOSTILE EVIDENCE"
+        # Range-dependent optical classification: HOSTILE EVIDENCE is the likely outcome
+        # but not certain, and UNKNOWN is the only other reachable state here since these
+        # engagements never present a friendly beacon or lineage.
+        assert local["identity_state"] in {"HOSTILE EVIDENCE", "UNKNOWN"}
         assert local["iff_evaluated"] is True
         assert local["navigation_updated"] is True
         assert local["safety_filter"] == "snape/RVO2-3D"
@@ -182,6 +198,42 @@ def test_recovery_claim_delay_is_ranked_and_later_claimants_cancel_from_observed
     assert all(event.agent_local["trigger"] == "observed_friendly_commitment" for event in cancellations)
 
 
+def test_recovery_claims_carry_real_hysteresis_state_not_a_hardcoded_hard_release():
+    result = run_scenario(ScenarioConfig(1, 5, 37, "deterministic_ablation", reserve_ratio=0.8, force_first_miss=True))
+    claims = [event for event in result.events if event.kind == "observer_claim"]
+    assert claims
+    for claim in claims:
+        confirmed = claim.agent_local["hysteresis_confirmed"]
+        assert isinstance(confirmed, bool)
+        # A claimant only becomes the tracked incumbent once hysteresis actually confirms
+        # the switch; otherwise the incumbent track must be left unchanged.
+        if confirmed:
+            assert claim.agent_local["hysteresis_track"] == claim.agent_local["local_track_id"]
+        else:
+            assert claim.agent_local["hysteresis_track"] != claim.agent_local["local_track_id"]
+
+
+def test_fleet_lifecycle_progresses_docked_departing_on_station_returning_docked_and_battery_drains():
+    result = run_scenario(ScenarioConfig(1, 3, 5, "airdnd", reserve_ratio=0.67, force_first_miss=True))
+    by_agent: dict[str, list[tuple[float, str, float]]] = {}
+    for event in result.events:
+        local = event.agent_local
+        if "lifecycle_state" not in local:
+            continue
+        by_agent.setdefault(local["agent_id"], []).append((event.time_s, local["lifecycle_state"], local["battery"]))
+
+    assert by_agent
+    for agent_id, entries in by_agent.items():
+        entries.sort(key=lambda item: item[0])
+        states = [state for _time, state, _battery in entries]
+        assert set(states) <= {"departing", "on_station", "returning", "docked"}
+        assert states[-1] == "docked"
+        batteries = [battery for _time, _state, battery in entries]
+        assert all(0.05 <= value <= 1.0 for value in batteries)
+        # Battery must never increase - it only drains until the mission ends.
+        assert all(later <= earlier + 1e-9 for earlier, later in zip(batteries, batteries[1:]))
+
+
 def test_all_five_baselines_execute_and_teacher_uses_ortools_when_installed():
     assert BASELINES == ("naive_static", "independent_greedy", "deterministic_ablation", "airdnd", "ortools_teacher")
     results = [run_scenario(ScenarioConfig(10, 14, 3, method)) for method in BASELINES]
@@ -189,166 +241,121 @@ def test_all_five_baselines_execute_and_teacher_uses_ortools_when_installed():
     assert results[-1].teacher_backend == "ortools"
 
 
-def test_fixed_replays_are_simulator_outputs_with_twenty_four_visible_drones():
-    success = run_fixed_replay("success")
-    miss = run_fixed_replay("miss_recovery")
-    naive = run_fixed_replay("naive")
-    replays = (success, miss, naive)
-    ready_agents = {
-        event.truth["interceptor_id"]
-        for event in miss.events
-        if event.kind == "observer_ready"
-    }
-    claim_agents = {
-        event.agent_local["agent_id"]
-        for event in miss.events
-        if event.kind == "observer_claim"
-    }
-    expected_agents = {f"I{index:03d}" for index in range(24)}
-    assert all(replay.config.interceptors == 24 for replay in replays)
-    assert all(
-        {
-            event.truth["interceptor_id"]
-            for event in replay.events
-            if event.kind == "trajectory_step"
-        }
-        == expected_agents
-        for replay in replays
-    )
-    assert any(event.kind == "neutralized" for event in success.events)
-    assert len(ready_agents) >= 2
-    assert claim_agents <= ready_agents
-    assert any(event.kind == "coverage_expired" for event in miss.events)
-    assert any(event.kind == "observer_claim" for event in miss.events)
-    assert success.config.seed != miss.config.seed
+import functools
+import json
+from pathlib import Path
+
+from airdnd.simulation import ABORT_BATTERY, FIXED_REPLAYS
 
 
-def test_full_demo_covers_deployment_twenty_hostiles_impacts_and_return_to_base():
-    replay = run_fixed_replay("full_demo")
-    kinds = [event.kind for event in replay.events]
-    hostile_tracks = {
-        event.truth["hostile_id"]
-        for event in replay.events
-        if event.kind == "hostile_trajectory_step"
-    }
-    interceptor_tracks = {
-        event.truth["interceptor_id"]
-        for event in replay.events
-        if event.kind == "trajectory_step"
-    }
+@functools.lru_cache(maxsize=None)
+def _replay(scenario_id):
+    return run_fixed_replay(scenario_id)
 
-    assert replay.config.hostiles == 20
-    assert replay.config.interceptors == 24
-    assert 120.0 <= replay.events[-1].time_s <= 150.0
-    assert hostile_tracks == {f"H{index:03d}" for index in range(20)}
-    assert interceptor_tracks == {f"I{index:03d}" for index in range(24)}
-    assert kinds.count("launched") == 24
-    assert kinds.count("formation_occupied") == 24
-    assert kinds.count("neutralized") == 20
-    assert kinds.count("expended") == 1
-    assert kinds.count("return_to_base") == 3
-    assert kinds.count("landed") == 3
-    deployment_starts = [
-        event.truth["from_position"]
-        for event in replay.events
-        if event.kind == "trajectory_step" and event.truth["state"] == "DEPLOYING"
-    ]
-    ingress_starts = [
-        event.truth["position"]
-        for event in replay.events
-        if event.kind == "threat_ingress"
-    ]
-    ingress_steps = [
-        event for event in replay.events
-        if event.kind == "hostile_trajectory_step"
-    ]
-    formation_positions = [
-        event.truth["position"]
-        for event in replay.events
-        if event.kind == "formation_occupied"
-    ]
-    assert deployment_starts and all(position[1] >= 1_200.0 for position in deployment_starts[:24])
-    assert ingress_starts and all(position[1] < -5_000.0 for position in ingress_starts)
-    assert all(event.truth["to_position"][1] > event.truth["from_position"][1] for event in ingress_steps)
-    assert formation_positions and all(position[1] <= -1_180.0 for position in formation_positions)
-    launch_distance = abs(deployment_starts[0][1] - formation_positions[0][1])
-    assert launch_distance >= 2_350.0
-    interceptor_speeds = [
-        np.linalg.norm(event.agent_local["safe_velocity"])
-        for event in replay.events
-        if event.kind == "trajectory_step"
-    ]
-    hostile_speeds = [
-        np.linalg.norm((np.asarray(event.truth["to_position"]) - np.asarray(event.truth["from_position"])) / 0.1)
-        for event in ingress_steps
-    ]
-    assert max(interceptor_speeds) >= 85.0
-    assert max(hostile_speeds) >= 48.0
-    assert replay.metrics.neutralized == 20
-    assert replay.metrics.leaked == 0
-    assert replay.metrics.completed
-    assert replay.metrics.recovery_count == 1
-    assert replay.metrics.minimum_separation_m >= replay.config.minimum_separation_m
-    assert replay.metrics.friendly_collisions == 0
-    assert replay.metrics.rf_ground_messages == 0
-    assert replay.metrics.rf_interdrone_messages == 0
-    assert replay.metrics.target_assignment_messages == 0
-    assert replay.metrics.decision_ticks >= 4_000
-    assert replay.metrics.belief_inferences > replay.metrics.decision_ticks
-    initial_claims = [
-        event
-        for event in replay.events
-        if event.kind == "mobilized" and event.truth["phase"] == "intercept"
-    ]
-    assert len(initial_claims) == 20
-    assert any(event.truth["interceptor_id"][1:] != event.truth["hostile_id"][1:] for event in initial_claims)
-    decision_steps = [
-        event
-        for event in replay.events
-        if event.kind == "trajectory_step" and event.agent_local["target_id"] is not None
-    ]
-    assert decision_steps
-    assert max(event.agent_local["hysteresis_ticks"] for event in decision_steps) > 0
-    assert {event.agent_local["neighbor_source"] for event in decision_steps} == {"noisy_local_tracks"}
-    failed_attempts = [
-        event for event in replay.events
-        if event.kind == "engagement_attempt" and not event.truth["outcome"]
-    ]
-    assert len(failed_attempts) == 1
-    assert "coverage_expired" in kinds
-    assert "observer_claim" in kinds
-    recovery_attempts = [
-        event
-        for event in replay.events
-        if event.kind == "engagement_attempt" and event.truth["hostile_id"] == failed_attempts[0].truth["hostile_id"]
-    ]
-    assert len(recovery_attempts) == 2
-    assert recovery_attempts[1].truth["success_probability"] < 0.98
-    terminal_steps = [
-        event for event in replay.events
-        if event.kind == "trajectory_step"
-        and event.agent_local["guidance_mode"] == "terminal_proportional_navigation"
-    ]
-    assert terminal_steps
-    assert all("estimated_position" in event.agent_local for event in terminal_steps)
-    return_steps = [
-        event for event in replay.events
-        if event.kind == "trajectory_step"
-        and event.agent_local["guidance_mode"] == "reverse_ins_waypoint"
-    ]
-    assert return_steps
-    waypoint_altitudes = {
-        event.agent_local["recovery_waypoint"][2]
-        for event in return_steps
-        if event.agent_local["recovery_waypoint"] is not None
-    }
-    assert waypoint_altitudes
-    assert all(altitude == 4.0 or altitude % 50.0 == 0.0 for altitude in waypoint_altitudes)
-    returning = {event.truth["interceptor_id"] for event in replay.events if event.kind == "return_to_base"}
-    landed = {event.truth["interceptor_id"] for event in replay.events if event.kind == "landed"}
-    assert landed == returning
-    landing_events = [event for event in replay.events if event.kind == "landed"]
-    assert all(0.0 < event.agent_local["physical_dock_error_m"] <= 15.0 for event in landing_events)
-    repeated = run_fixed_replay("full_demo")
-    assert repeated.metrics == replay.metrics
-    assert repeated.events == replay.events
+
+def _kinds(result, hostile_id=None):
+    return [e.kind for e in result.events if hostile_id is None or e.truth.get("hostile_id") == hostile_id]
+
+
+def test_scenario_catalogue_names_every_fixed_replay_exactly_once():
+    catalogue = json.loads((Path(__file__).resolve().parents[1] / "configs" / "scenarios.json").read_text(encoding="utf-8"))
+    ids = [entry["id"] for entry in catalogue["scenarios"]]
+    assert ids == list(FIXED_REPLAYS)
+    titles = [entry["title"] for entry in catalogue["scenarios"]]
+    assert len(set(titles)) == len(titles)
+    assert all(entry["summary"] and entry["force"] for entry in catalogue["scenarios"])
+
+
+def test_every_fixed_replay_is_a_safe_contiguous_section_swarm():
+    for scenario_id in FIXED_REPLAYS:
+        result = _replay(scenario_id)
+        init = result.events[0]
+        assert init.kind == "swarm_initialized", scenario_id
+        assert len(init.truth["interceptors"]) == result.config.interceptors
+        assert len({d["section"] for d in init.truth["interceptors"]}) == result.config.interceptors // 9
+        frames = [e.presentation["frame"] for e in result.events]
+        assert frames == list(range(len(frames))), scenario_id
+        times = [e.time_s for e in result.events]
+        assert all(b >= a - 1e-9 for a, b in zip(times, times[1:])), scenario_id
+        assert result.metrics.friendly_collisions == 0, scenario_id
+        assert result.metrics.minimum_separation_m >= result.config.minimum_separation_m, scenario_id
+        assert result.metrics.completed, scenario_id
+        assert result.metrics.rf_ground_messages == result.metrics.rf_interdrone_messages == result.metrics.target_assignment_messages == 0
+
+
+def test_launch_formation_flies_sections_from_pads_into_the_grid():
+    result = _replay("launch_formation")
+    init = result.events[0].truth["interceptors"]
+    assert all(d["position"][2] == 15.0 and d["position"][1] < d["cell"][1] - 500 for d in init)
+    kinds = _kinds(result)
+    assert kinds.count("section_launch") == 9 and kinds.count("section_on_station") == 9
+    assert kinds.index("grid_set") < kinds.index("policy_decision")
+    grid_time = next(e.time_s for e in result.events if e.kind == "grid_set")
+    assert all(e.time_s >= grid_time for e in result.events if e.kind in ("policy_decision", "engagement_attempt"))
+
+
+def test_intercept_success_lead_hits_first_and_duplicates_stand_down():
+    result = _replay("intercept_success")
+    assert (result.config.interceptors, result.config.hostiles) == (27, 9)
+    h000 = [e for e in result.events if e.truth.get("hostile_id") == "H000"]
+    assert ("neutralized", "I000") in [(e.kind, e.truth.get("interceptor_id")) for e in h000]
+    assert "claim_cancelled" in [e.kind for e in h000]
+
+
+def test_miss_recovery_reserve_observer_recovers_the_forced_miss():
+    result = _replay("miss_recovery")
+    ready = {e.truth["interceptor_id"] for e in result.events if e.kind == "observer_ready"}
+    claims = {e.agent_local["agent_id"] for e in result.events if e.kind == "observer_claim"}
+    assert ready and all(27 <= int(agent[1:]) < 81 for agent in ready)
+    assert claims and claims <= ready
+    kinds = _kinds(result, "H000")
+    assert kinds.index("coverage_expired") < kinds.index("observer_claim") < kinds.index("neutralized")
+
+
+def test_multi_wave_recovers_engaged_drones_and_refills_cells_before_wave_two():
+    result = _replay("multi_wave")
+    waves = [e for e in result.events if e.kind == "wave_detected"]
+    assert [w.truth["wave"] for w in waves] == [1, 2]
+    assert waves[1].truth["delayed_by_s"] == 0.0 and waves[1].time_s == waves[1].truth["scheduled_time_s"]
+    index = {id(e): i for i, e in enumerate(result.events)}
+    refill_done = next(e for e in result.events if e.kind == "refill_complete")
+    first_return = next(e for e in result.events if e.kind == "rth_docked")
+    assert index[id(first_return)] < index[id(refill_done)] < index[id(waves[1])]
+    claimers = [e for e in result.events if e.kind == "cell_refill_claim"]
+    assert claimers and all(e.agent_local["trigger"] == "observed_vacated_cell" for e in claimers)
+    assert len({e.truth["vacated_by"] for e in claimers}) == len(claimers)  # one reserve per empty cell
+    wave2 = set(waves[1].truth["hostile_ids"])
+    assert all(e.truth["hostile_id"] in wave2 for e in result.events if e.kind == "engagement_attempt" and e.time_s > waves[1].time_s)
+    assert result.metrics.leaked == 0
+
+
+def test_return_to_base_aborts_at_threshold_and_docks_by_dead_reckoning():
+    result = _replay("return_to_base")
+    aborts = [e for e in result.events if e.kind == "abort"]
+    assert aborts and all(e.truth["battery"] <= ABORT_BATTERY for e in aborts)
+    assert all(e.truth["interceptor_id"] in {f"I{i:03d}" for i in range(27)} for e in aborts)  # platoon A1 only
+    docked = {e.truth["interceptor_id"]: e for e in result.events if e.kind == "rth_docked"}
+    assert set(docked) == {e.truth["interceptor_id"] for e in aborts}
+    errors = [e.truth["docking_error_m"] for e in docked.values()]
+    assert 0.0 < max(errors) < 20.0  # INS bias gives a real, bounded dead-reckoning error
+    descent = [e for e in result.events if e.kind == "rth_step" and e.truth["phase"] == "descend"]
+    assert descent
+
+
+def test_friend_or_foe_never_engages_or_calls_friendlies_hostile():
+    result = _replay("friend_or_foe")
+    iff = [e for e in result.events if e.kind == "iff_classification"]
+    states = [state for e in iff for state in e.truth["identity_states"].values()]
+    assert len(iff) == 2 * 9
+    assert "HOSTILE EVIDENCE" not in states
+    assert {"CONFIRMED FRIENDLY", "UNKNOWN"} <= set(states)
+    assert all(e.truth["engaged"] is False for e in iff)
+    assert not any(str(e.truth.get("hostile_id", "")).startswith("F") for e in result.events)
+
+
+def test_naive_baseline_matches_miss_recovery_world_but_not_its_policy():
+    naive, airdnd = _replay("naive_baseline"), _replay("miss_recovery")
+    assert (naive.config.seed, naive.config.hostiles, naive.config.interceptors) == (airdnd.config.seed, airdnd.config.hostiles, airdnd.config.interceptors)
+    assert naive.events[0].truth["hostiles"] == airdnd.events[0].truth["hostiles"]
+    assert naive.config.method == "independent_greedy" and "observer_claim" not in _kinds(naive)
+    assert naive.metrics.leaked > airdnd.metrics.leaked

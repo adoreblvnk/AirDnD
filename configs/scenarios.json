@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "naming": "Each scenario has one id used unchanged as the replay file name (evidence/replays/<id>.json), the API id (/api/scenarios/<id>/replay), the frontend key and the button test id (replay-<id>).",
+  "scenarios": [
+    {
+      "id": "launch_formation",
+      "title": "Launch & Formation",
+      "force": "Company A (81) vs 9 hostiles",
+      "summary": "Nine 3x3 sections launch from coastal pads, climb their pre-cleared lanes and set the grid before engaging.",
+      "spec": "AIRDND.md 9.4-1"
+    },
+    {
+      "id": "intercept_success",
+      "title": "Intercept Success",
+      "force": "Platoon A1 (27) vs 9 hostiles",
+      "summary": "The lead drone hits H000 first time; duplicate claimants see it commit and stand down.",
+      "spec": "AIRDND.md 9.4-2"
+    },
+    {
+      "id": "miss_recovery",
+      "title": "Miss & Recovery",
+      "force": "Company A (81) vs 27 hostiles",
+      "summary": "The lead misses H000, coverage expires, and a reserve observer claims and destroys it with no command.",
+      "spec": "AIRDND.md 9.4-3"
+    },
+    {
+      "id": "multi_wave",
+      "title": "Multi-Wave Attack",
+      "force": "Company A (81) vs 2 waves of 12",
+      "summary": "Wave 1 is engaged, engaged drones return to rearm, reserves refill the empty cells, then wave 2 arrives.",
+      "spec": "AIRDND.md 2.3, AC-007, AC-008"
+    },
+    {
+      "id": "return_to_base",
+      "title": "Return to Base",
+      "force": "Company A (81) vs 18 hostiles",
+      "summary": "Platoon A1 starts low on battery, aborts at 25% after engaging and flies home by dead reckoning.",
+      "spec": "AIRDND.md 9.4-4, 4.4, AC-009"
+    },
+    {
+      "id": "friend_or_foe",
+      "title": "Friend or Foe",
+      "force": "Company A (81) vs 9 hostiles + 2 friendlies",
+      "summary": "Two friendly transit tracks cross the front; beacon loss leaves them UNKNOWN, never hostile, and they are never engaged.",
+      "spec": "AIRDND.md 5.6, AC-034"
+    },
+    {
+      "id": "naive_baseline",
+      "title": "Naive Baseline",
+      "force": "Company A (81) vs 27 hostiles",
+      "summary": "Same company, hostiles and seed as Miss & Recovery, but every drone chooses greedily with no coverage model.",
+      "spec": "AIRDND.md 10.3"
+    }
+  ]
+}

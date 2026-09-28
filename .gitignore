@@ -16,7 +16,10 @@ frontend/vite.config.js
 frontend/vite.config.d.ts
 presentation/captures/
 evidence/training/
+# The full-scale raw event log regularly exceeds GitHub's 100MB file limit;
+# the equivalent flattened data stays checked in via evidence/raw/benchmark.csv.
+evidence/raw/benchmark.jsonl
 .impeccable/review/
 .playwright-cli/
 *.egg-info/
-AirDnD.mp4
+.claude/

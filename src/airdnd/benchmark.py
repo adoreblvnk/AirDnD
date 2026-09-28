@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from .model import export_onnx_int8, train_belief_model
-from .simulation import BASELINES, ScenarioConfig, run_fixed_replay, run_scenario
+from .simulation import BASELINES, FIXED_REPLAYS, ScenarioConfig, run_fixed_replay, run_scenario
 
 
 def _system_profile() -> dict:
@@ -220,10 +220,8 @@ def generate_evidence(output_dir: Path, seeds: Iterable[int] = range(30), hostil
         elapsed_ms = (time.perf_counter_ns() - started) / 1_000_000
         scaling.append({"hostiles": count, "completed": scale_result.metrics.completed, "entity_drops": scale_result.metrics.entity_drops, "elapsed_ms": elapsed_ms, "per_entity_ms": elapsed_ms / count})
     _write_json(output_dir / "reports/scaling.json", {"evidence_class": "simulation_evidence", "results": scaling})
-    _write_json(output_dir / "replays/full_demo.json", run_fixed_replay("full_demo").to_dict())
-    _write_json(output_dir / "replays/success.json", run_fixed_replay("success").to_dict())
-    _write_json(output_dir / "replays/miss_recovery.json", run_fixed_replay("miss_recovery").to_dict())
-    _write_json(output_dir / "replays/naive.json", run_fixed_replay("naive").to_dict())
+    for kind in FIXED_REPLAYS:
+        _write_json(output_dir / f"replays/{kind}.json", run_fixed_replay(kind).to_dict())
     model, training = train_belief_model()
     models = output_dir / "models"
     models.mkdir(parents=True, exist_ok=True)

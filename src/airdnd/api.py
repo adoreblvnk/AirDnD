@@ -16,9 +16,20 @@ from pydantic import BaseModel, Field
 import torch
 
 from .model import export_onnx_int8, train_belief_model
+from .simulation import FIXED_REPLAYS
 
 _SCENARIO_ID = re.compile(r"^[A-Za-z0-9_-]+$")
-_FIXED_REPLAY_IDS = frozenset({"full_demo", "full-demo", "success", "miss_recovery", "miss-recovery", "naive"})
+_FIXED_REPLAY_IDS = frozenset(FIXED_REPLAYS)
+_CATALOGUE_PATH = Path(__file__).resolve().parents[2] / "configs" / "scenarios.json"
+
+
+def _scenario_title(scenario_id: str) -> str:
+    """Display title from configs/scenarios.json, or a title-cased id when it is absent."""
+    if _CATALOGUE_PATH.is_file():
+        for entry in json.loads(_CATALOGUE_PATH.read_text(encoding="utf-8")).get("scenarios", []):
+            if entry.get("id") == scenario_id:
+                return str(entry["title"])
+    return scenario_id.replace("_", " ").replace("-", " ").title()
 _LOCAL_FORBIDDEN_KEYS = frozenset(
     {
         "physical_id",
@@ -73,7 +84,7 @@ def _load_scenario(path: Path) -> dict[str, Any]:
     return {
         "scenario": {
             "id": scenario_id,
-            "name": scenario_id.replace("_", " ").replace("-", " ").title(),
+            "name": _scenario_title(scenario_id),
             "seed": data.get("config", {}).get("seed"),
             "fixed": scenario_id in _FIXED_REPLAY_IDS,
         },
@@ -305,7 +316,7 @@ def create_app(*, data_root: Path | str = Path("artifacts")) -> FastAPI:
     @app.get("/api/scenarios/{scenario_id}/replay")
     def replay(
         scenario_id: str,
-        perspective: str = Query("overview", pattern="^(overview|local)$"),
+        perspective: str = Query("overview", pattern="^(overview|local|locals)$"),
         observer_id: str | None = None,
         evaluator_overlay: bool = False,
     ) -> dict[str, Any]:
@@ -315,6 +326,29 @@ def create_app(*, data_root: Path | str = Path("artifacts")) -> FastAPI:
         replay_data = _load_scenario(path)
         if replay_data.get("scenario", {}).get("fixed") is not True:
             raise HTTPException(status_code=404, detail="Scenario not found")
+        if perspective == "locals":
+            # Every interceptor's own sanitized local view, keyed by agent, in one stream so
+            # a swarm display does not need one request per drone. No truth is included.
+            local_frames = []
+            for frame in replay_data["frames"]:
+                rendered = {
+                    "frame": frame["frame"],
+                    "time_s": frame["time_s"],
+                    "local_views": {
+                        agent_id: _sanitize_local(view)
+                        for agent_id, view in frame.get("local_views", {}).items()
+                        if view is not None
+                    },
+                }
+                if frame.get("presentation"):
+                    rendered["presentation"] = frame["presentation"]
+                local_frames.append(rendered)
+            return {
+                "scenario_id": scenario_id,
+                "perspective": {"kind": "locals"},
+                "stream_role": "ground-station-display-only",
+                "frames": local_frames,
+            }
         if perspective == "local":
             if observer_id is None:
                 raise HTTPException(status_code=422, detail="observer_id is required")
@@ -349,6 +383,7 @@ def create_app(*, data_root: Path | str = Path("artifacts")) -> FastAPI:
                 "frame": frame["frame"],
                 "time_s": frame["time_s"],
                 "overview": frame["truth"],
+                **({"event_kind": frame["event_kind"]} if frame.get("event_kind") else {}),
             }
             for frame in replay_data["frames"]
         ]

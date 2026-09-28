@@ -35,7 +35,7 @@ const SCENARIOS: Array<{ id: ScenarioId; label: string }> = [
   { id: "naive", label: "Naive" }
 ];
 
-const PLAYBACK_RATES = [0.5, 1, 2, 4] as const;
+const PLAYBACK_RATES = [0.5, 1, 2, 2.5, 4] as const;
 const FOCUSED_VIEWS = new Set<ViewName>(["Identity", "Safety", "Fleet"]);
 interface DemoChapter {
   id: string;
@@ -96,7 +96,7 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState<number>(1);
+  const [playbackRate, setPlaybackRate] = useState<number>(2.5);
   const [truthOverlay, setTruthOverlay] = useState(true);
   const [guided, setGuided] = useState(true);
   const animationFrame = useRef<number | null>(null);
@@ -129,7 +129,7 @@ export default function App() {
     setScenarioId("full_demo");
     setView("Scene");
     setTime(0);
-    setPlaybackRate(1);
+    setPlaybackRate(2.5);
     setTruthOverlay(true);
     setGuided(true);
     setPlaying(true);
@@ -232,7 +232,7 @@ export default function App() {
             ))}
           </div>
         )}
-        <button type="button" className={`demo-mode ${guided ? "active" : ""}`} aria-pressed={guided} onClick={toggleGuidedDemo}><span className="mode-dot" />{guided ? "Exit guide" : "Run 2:29 demo"}</button>
+        <button type="button" className={`demo-mode ${guided ? "active" : ""}`} aria-pressed={guided} onClick={toggleGuidedDemo}><span className="mode-dot" />{guided ? "Exit guide" : "Run 1:00 demo"}</button>
       </header>
 
       <nav className="left-rail" aria-label="Primary views">

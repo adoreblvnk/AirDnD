@@ -25,7 +25,9 @@ import { Entity, ModelGraphics, Viewer, useCesium } from "resium";
 import type { ReplayModel, TrackSample, Vec3 } from "../replay";
 import { closestSafetyTelemetry, latestAgentTelemetry, latestTargetTelemetry, sampleTrack } from "../replay";
 
-const ORIGIN = Cartesian3.fromDegrees(103.875, 1.245, 0);
+// Marina Bay anchor. Local +Y is north/inland and -Y is south/open sea, so the
+// recorded hostile tracks naturally approach Singapore from the sea.
+const ORIGIN = Cartesian3.fromDegrees(103.8565, 1.2835, 0);
 const LOCAL_TO_WORLD = Transforms.eastNorthUpToFixedFrame(ORIGIN);
 const FRIENDLY = Color.fromCssColorString("#55a7e8");
 const FRIENDLY_SOFT = Color.fromCssColorString("#8ac8f3");
@@ -94,7 +96,7 @@ function WorldLoader({ model, mode, time, cameraStyle, onTileState }: Pick<Cesiu
     let cancelled = false;
     let tileset: Cesium3DTileset | undefined;
     onTileState?.("loading");
-    createGooglePhotorealistic3DTileset({ onlyUsingWithGoogleGeocoder: true })
+    createGooglePhotorealistic3DTileset({ key: googleKey, onlyUsingWithGoogleGeocoder: true })
       .then((loaded) => {
         if (cancelled) {
           loaded.destroy();
@@ -121,16 +123,16 @@ function WorldLoader({ model, mode, time, cameraStyle, onTileState }: Pick<Cesiu
     if (!viewer) return;
     const destinations: Record<SceneMode, { position: Vec3; heading: number; pitch: number }> = {
       overview: overviewPhase === "launch"
-        ? { position: [0, -300, 2_200], heading: 0, pitch: -65 }
-        : { position: [0, -3_000, 3_600], heading: 0, pitch: -85 },
-      forward: { position: [-120, -1_250, 320], heading: 180, pitch: -5 },
-      observer: { position: [120, -2_000, 1_600], heading: 180, pitch: -62 },
-      contact: { position: [-300, -550, 400], heading: 10, pitch: -20 },
-      miss: { position: [300, -550, 400], heading: -10, pitch: -20 },
-      uncertainty: { position: [0, -2_600, 1_850], heading: 180, pitch: -28 },
-      identity: { position: [0, -2_700, 1_150], heading: 180, pitch: -18 },
-      safety: { position: [0, -2_800, 1_600], heading: 180, pitch: -75 },
-      fleet: { position: [-700, -1_900, 1_500], heading: 24, pitch: -31 }
+        ? { position: [0, 800, 2_400], heading: 180, pitch: -55 }
+        : { position: [0, -1_000, 4_200], heading: 180, pitch: -68 },
+      forward: { position: [-120, 900, 420], heading: 180, pitch: -8 },
+      observer: { position: [120, 1_300, 1_600], heading: 180, pitch: -48 },
+      contact: { position: [-300, 1_000, 520], heading: 180, pitch: -20 },
+      miss: { position: [300, 1_000, 520], heading: 180, pitch: -20 },
+      uncertainty: { position: [0, 1_500, 1_850], heading: 180, pitch: -28 },
+      identity: { position: [0, 1_600, 1_150], heading: 180, pitch: -18 },
+      safety: { position: [0, 1_400, 1_600], heading: 180, pitch: -65 },
+      fleet: { position: [-700, 1_300, 1_500], heading: 180, pitch: -31 }
     };
     let target = destinations[mode ?? "overview"];
     if (mode === "identity" && identityObserver && identityTarget) {
@@ -160,8 +162,8 @@ function WorldLoader({ model, mode, time, cameraStyle, onTileState }: Pick<Cesiu
     } else if (cameraStyle === "horizon") {
       if (mode === "overview") {
         target = overviewPhase === "launch"
-          ? { position: [0, -700, 720], heading: 0, pitch: -16 }
-          : { position: [0, -4_200, 850], heading: 0, pitch: -14 };
+          ? { position: [0, 1_800, 760], heading: 180, pitch: -16 }
+          : { position: [0, 2_400, 950], heading: 180, pitch: -14 };
       } else {
         target = { ...target, position: [target.position[0], target.position[1], Math.min(target.position[2], 900)], pitch: -16 };
       }
@@ -270,6 +272,18 @@ function SectorGeometry() {
 }
 
 
+function zigzagTrack(samples: TrackSample[], id: string, amplitude: number) {
+  const phase = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) * 0.37;
+  return samples.map((sample) => ({
+    ...sample,
+    position: [
+      sample.position[0] + Math.sin(sample.time * 1.35 + phase) * amplitude,
+      sample.position[1],
+      sample.position[2] + Math.sin(sample.time * 0.68 + phase) * amplitude * 0.12,
+    ] as Vec3,
+  }));
+}
+
 function sampledPosition(samples: TrackSample[]) {
   const property = new SampledPositionProperty();
   property.addSamples(
@@ -280,18 +294,24 @@ function sampledPosition(samples: TrackSample[]) {
 }
 
 function ReplayEntities({ model, time, mode, truthOverlay }: Required<Pick<CesiumSceneProps, "time" | "mode" | "truthOverlay">> & Pick<CesiumSceneProps, "model">) {
-  const friendlies = useMemo(() => model ? Array.from(model.tracks.entries()).map(([id, samples]) => ({
-    id,
-    samples,
-    position: sampledPosition(samples),
-    removedAt: model.removedAt.get(id)
-  })) : [], [model]);
-  const hostiles = useMemo(() => model ? Array.from(model.hostileTracks.entries()).map(([id, samples]) => ({
-    id,
-    samples,
-    position: sampledPosition(samples),
-    removedAt: model.removedAt.get(id)
-  })) : [], [model]);
+  const friendlies = useMemo(() => model ? Array.from(model.tracks.entries()).map(([id, samples]) => {
+    const displaySamples = zigzagTrack(samples, id, 18);
+    return {
+      id,
+      samples: displaySamples,
+      position: sampledPosition(displaySamples),
+      removedAt: model.removedAt.get(id)
+    };
+  }) : [], [model]);
+  const hostiles = useMemo(() => model ? Array.from(model.hostileTracks.entries()).map(([id, samples]) => {
+    const displaySamples = zigzagTrack(samples, id, 28);
+    return {
+      id,
+      samples: displaySamples,
+      position: sampledPosition(displaySamples),
+      removedAt: model.removedAt.get(id)
+    };
+  }) : [], [model]);
   const localSelection = useMemo(() => {
     if (!model || (mode !== "forward" && mode !== "observer" && mode !== "identity")) return null;
     const event = mode === "identity"
@@ -454,7 +474,7 @@ function UncertaintyEntities({ model, time }: { model: ReplayModel | null; time:
 
 
 const PROVENANCE: Record<SceneMode, string> = {
-  overview: "Recorded replay tracks · hosted Google 3D context",
+  overview: "Recorded replay timing · accelerated zigzag presentation",
   forward: "Noisy local track · evaluator ground truth masked",
   observer: "Observer local track · private coverage recovery",
   contact: "Recorded simulator outcome · impact event",
@@ -466,7 +486,7 @@ const PROVENANCE: Record<SceneMode, string> = {
 };
 
 export function CesiumScene({ model, time, mode = "overview", truthOverlay = true, className, onTileState }: CesiumSceneProps) {
-  const [cameraStyle, setCameraStyle] = useState<CameraStyle>(mode === "identity" ? "horizon" : "plan");
+  const [cameraStyle, setCameraStyle] = useState<CameraStyle>(mode === "overview" || mode === "identity" ? "horizon" : "plan");
   const [tileState, setTileState] = useState<"loading" | "ready" | "error">("loading");
   const handleTileState = useCallback((state: "loading" | "ready" | "error") => {
     setTileState(state);
